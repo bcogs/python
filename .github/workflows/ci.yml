@@ -10,7 +10,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Lint and format check with Ruff
-        uses: astral-sh/setup-ruff@v3
+        uses: astral-sh/setup-ruff@v4
         with:
           version: latest
       - run: ruff check .
