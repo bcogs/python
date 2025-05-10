@@ -1,4 +1,4 @@
-# to run the tests:   python3 -m unittest test.py
+# to run the tests:   pushd .. && python3 -m unittest log.test; popd
 import contextlib
 import io
 import os
@@ -7,7 +7,7 @@ import shutil
 import tempfile
 import unittest
 
-import __init__ as log
+import log
 
 
 class TestFileSink(unittest.TestCase):
