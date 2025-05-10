@@ -252,3 +252,13 @@ class TestDefault(unittest.TestCase):
                 log.setup_default()
         finally:
             os.remove(file_path)
+
+
+class TestStackTrace(unittest.TestCase):
+    def test_stack_trace(self):
+        try:
+            raise BaseException("blah")
+        except BaseException as e:
+            s = log.stack_trace(e)
+            self.assertRegex(s, "log/test.py.*line \d.*test_stack_trace")
+            self.assertIn('raise BaseException("blah")', s)

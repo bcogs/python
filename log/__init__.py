@@ -1,9 +1,9 @@
 import os
 import sys
 import tempfile
+import traceback
 import time
 
-from traceback import format_stack
 from typing import Any
 
 DBG = 0  # or negative for verbose debug
@@ -125,7 +125,12 @@ class logger(object):
         self.log(FATAL, fmt, *args, **kwargs)
 
 
-def make(level: int, fmt: str, *args, **kwargs):
+def stack_trace(e: BaseException) -> str:
+    """Stringify an exception as a python stack trace."""
+    return "".join(traceback.format_exception(type(e), e, e.__traceback__))
+
+
+def make(level: int, fmt: str, *args, **kwargs) -> (int, str):
     """Turn a format and args into a single string, handling bad arguments well.
 
     Parameters:
@@ -144,7 +149,7 @@ def make(level: int, fmt: str, *args, **kwargs):
     except Exception:
         level = max(min(level, FATAL), ERR)
         msg = f"log format error - level={level!r}, fmt={fmt!r}, args={args!r}, kwargs={kwargs!r}"
-    caller_stack = "".join(format_stack(limit=10)[:-1])
+    caller_stack = "".join(traceback.format_stack(limit=10)[:-1])
     return level, msg + "\n at " + caller_stack
 
 
