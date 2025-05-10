@@ -9,12 +9,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Lint and format check with Ruff
-        uses: astral-sh/setup-ruff@v4
+      - name: Lint with Ruff
+        uses: astral-sh/ruff-action@v1
         with:
-          version: latest
-      - run: ruff check .
-      - run: ruff format --check .
+          args: check .
+
+      - name: Check formatting with Ruff
+        uses: astral-sh/ruff-action@v1
+        with:
+          args: format --check
+
 
       - name: Run tests using system Python
         run: python3 -m unittest discover -p "*test.py"
