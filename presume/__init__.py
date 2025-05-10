@@ -6,6 +6,9 @@ import tempfile
 class context(object):
     """Context that facilitates resuming a program from where it left after it exits.
 
+    Works if it exits due to uncaught exceptions, SIGINT, SIGPIPE, or sys.exit.
+    Can't do anything about most lethal signals (e.g. SIGTERM) or os._exit, unfortunately.
+
     Example use:
       class my_cool_class(object):
 
