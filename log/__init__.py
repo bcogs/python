@@ -127,7 +127,25 @@ class logger(object):
 
 def stack_trace(e: BaseException) -> str:
     """Stringify an exception as a python stack trace."""
-    return "".join(traceback.format_exception(type(e), e, e.__traceback__))
+    return "".join(traceback.format_exception(type(e), e, e.__traceback__)).rstrip()
+
+
+class stack_trace_logger(object):
+    """Context manager that writes the stack trace to logs if there's an exception.
+
+    Example use:
+      with log.stack_trace_logger(log_func=log.err): do_something()
+    """
+
+    def __init__(self, log_func=err):
+        self.log_func = log_func
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, ext_tb):
+        if exc_type is not None:
+            self.log_func("%s", stack_trace(exc_value))
 
 
 def make(level: int, fmt: str, *args, **kwargs) -> (int, str):

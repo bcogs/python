@@ -262,3 +262,16 @@ class TestStackTrace(unittest.TestCase):
             s = log.stack_trace(e)
             self.assertRegex(s, "log/test.py.*line \d.*test_stack_trace")
             self.assertIn('raise BaseException("blah")', s)
+            self.assertFalse(s.startswith("\n"))
+            self.assertFalse(s.endswith("\n"))
+
+    def test_stack_trace_logger(self):
+        sink = log.ram_sink()
+        try:
+            with log.stack_trace_logger(log_func=log.logger(sink).err):
+                raise Exception("blah")
+        except Exception:
+            pass
+        self.assertEqual(log.ERR, sink.logs[0][0])
+        self.assertRegex(sink.logs[0][1], "log/test.py.*line \d.*test_stack_trace_logger")
+        self.assertIn('raise Exception("blah")', sink.logs[0][1])
