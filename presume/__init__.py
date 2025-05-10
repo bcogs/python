@@ -57,3 +57,30 @@ class context(object):
             pickle.dump(self.state, tmp)
             tmp_path = tmp.name
         os.replace(tmp_path, self.state_filename)
+
+
+class iterator(object):
+    """Iterator that can be pickled and thus persisted.
+
+    Example use:
+      with presume.context(...) as p:
+        for n in p.state.__dict__.setdefault('it', presume.iterator([1, 2, 3])):
+          do_something (n)
+    """
+
+    def __init__(self, sequence):
+        self._index, self._sequence = 0, sequence
+
+    def __iter__(self):
+        self._index -= 1
+        return self
+
+    def __next__(self):
+        self._index += 1
+        if not hasattr(self, "_index"):
+            raise StopIteration
+        if self._index >= len(self._sequence):
+            del self._index
+            del self._sequence
+            raise StopIteration
+        return self._sequence[self._index]
