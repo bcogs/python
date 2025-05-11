@@ -71,7 +71,7 @@ class TestFileSink(unittest.TestCase):
         with log.file_sink(stderr_level=log.INFO, file_path=fpath) as sink:
             buf = io.StringIO()
             with contextlib.redirect_stderr(buf):
-                sink.log(log.ERR, "binary \xd4 rubbish")
+                sink.log(log.ERR, "binary rubbish \xff")
             self.assertIn("rubbish", buf.getvalue())
         with open(fpath) as f:
             self.assertIn("rubbish", f.read())
