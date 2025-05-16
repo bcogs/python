@@ -84,3 +84,8 @@ class iterator(object):
             del self._sequence
             raise StopIteration
         return self._sequence[self._index]
+
+    def set_position(self, position=0):
+        "Set the iterator to a given position."
+        # TODO: exercise it in unit tests
+        self._index = position - 1
