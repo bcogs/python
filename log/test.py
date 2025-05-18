@@ -7,7 +7,10 @@ import shutil
 import tempfile
 import unittest
 
-import log
+try:
+    import __init__ as log
+except ModuleNotFoundError:
+    import log
 
 
 class TestFileSink(unittest.TestCase):

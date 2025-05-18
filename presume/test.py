@@ -9,7 +9,10 @@ import sys
 import tempfile
 import unittest
 
-import presume
+try:
+    import __init__ as presume
+except ModuleNotFoundError:
+    import presume
 
 
 class failure(Exception):
@@ -22,12 +25,14 @@ class state(object):
         self.started_steps = []
         self.completed_steps = []
 
-    def main(self, failing_step, fail_func, sequence=None):
+    def main(self, failing_step, fail_func, sequence=None, set_pos=None):
         iterator = (
             range(self.step, 10)
             if sequence is None
             else self.__dict__.setdefault("iterator", presume.iterator(sequence))
         )
+        if set_pos is not None:
+            iterator.set_position(set_pos)
         for self.step in iterator:
             self.started_steps.append(self.step)
             if self.step == failing_step:
@@ -123,3 +128,27 @@ class TestIterator(unittest.TestCase):
             p.state.main(-1, None, [0, 1, 2])
             self.assertEqual([0, 1, 1, 2], p.state.started_steps)
             self.assertEqual([0, 1, 2], p.state.completed_steps)
+
+    def test_set_position(self):
+        for pos in [0, 1, 2]:
+            with presume.context(state(), state_filename=os.path.join(self.test_dir, "nofailure-%d" % pos)) as p:
+                p.state.main(-1, None, [0, 1, 2], pos)
+                self.assertEqual(list(range(pos, 3)), p.state.completed_steps)
+                with self.assertRaises(Exception) as cm:
+                    p.state.main(-1, None, [0, 1, 2], 1)
+                self.assertIn("supported", str(cm.exception))
+            for fail_at in range(pos, 3):
+                print(pos, fail_at)
+                with presume.context(
+                    state(), state_filename=os.path.join(self.test_dir, "failat-%d-%d" % (pos, fail_at))
+                ) as p:
+                    try:
+                        p.state.main(fail_at, None, [0, 1, 2], pos)
+                    except failure:
+                        self.assertEqual(list(range(pos, fail_at + 1)), p.state.started_steps)
+                    p.state.main(-1, None, [0, 1, 2], pos)
+                    self.assertEqual(list(range(pos, fail_at + 1)) + list(range(pos, 3)), p.state.started_steps)
+                    self.assertEqual(list(range(pos, fail_at)) + list(range(pos, 3)), p.state.completed_steps)
+                    with self.assertRaises(Exception) as cm:
+                        p.state.main(-1, None, [0, 1, 2], pos)
+                    self.assertIn("supported", str(cm.exception))

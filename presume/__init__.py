@@ -72,13 +72,14 @@ class iterator(object):
         self._index, self._sequence = 0, sequence
 
     def __iter__(self):
-        self._index -= 1
+        if hasattr(self, "_index"):
+            self._index -= 1
         return self
 
     def __next__(self):
-        self._index += 1
         if not hasattr(self, "_index"):
             raise StopIteration
+        self._index += 1
         if self._index >= len(self._sequence):
             del self._index
             del self._sequence
@@ -86,6 +87,12 @@ class iterator(object):
         return self._sequence[self._index]
 
     def set_position(self, position=0):
-        "Set the iterator to a given position."
-        # TODO: exercise it in unit tests
-        self._index = position - 1
+        """Set the iterator to a given position.
+
+        Musnt't be called after the iteration ends successfully.
+        """
+        if not hasattr(self, "_sequence"):
+            # it isn't supported because we del self._sequence at the end of the
+            # iteration, so we can't iterate again
+            raise Exception("calling set_position after the iteration ended isn't supported")
+        self._index = position
