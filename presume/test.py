@@ -126,7 +126,6 @@ class TestIterator(unittest.TestCase):
             self.assertEqual([0, 1, 2], p.state.completed_steps)
 
     def test_set_position(self):
-        state_file = os.path.join(self.test_dir, "state")
         for pos in [0, 1, 2]:
             with presume.context(state(), state_filename=os.path.join(self.test_dir, "nofailure-%d" % pos)) as p:
                 p.state.main(-1, None, [0, 1, 2], pos)
