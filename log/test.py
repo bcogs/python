@@ -7,7 +7,7 @@ import shutil
 import tempfile
 import unittest
 
-import log
+import __init__ as log
 
 
 class TestFileSink(unittest.TestCase):
