@@ -72,7 +72,8 @@ class iterator(object):
         self._index, self._sequence = 0, sequence
 
     def __iter__(self):
-        if hasattr(self, "_index"): self._index -= 1
+        if hasattr(self, "_index"):
+            self._index -= 1
         return self
 
     def __next__(self):

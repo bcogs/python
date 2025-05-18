@@ -28,7 +28,8 @@ class state(object):
             if sequence is None
             else self.__dict__.setdefault("iterator", presume.iterator(sequence))
         )
-        if set_pos is not None: iterator.set_position(set_pos)
+        if set_pos is not None:
+            iterator.set_position(set_pos)
         for self.step in iterator:
             self.started_steps.append(self.step)
             if self.step == failing_step:
@@ -135,7 +136,9 @@ class TestIterator(unittest.TestCase):
                 self.assertIn("supported", str(cm.exception))
             for fail_at in range(pos, 3):
                 print(pos, fail_at)
-                with presume.context(state(), state_filename=os.path.join(self.test_dir, "failat-%d-%d" % (pos, fail_at))) as p:
+                with presume.context(
+                    state(), state_filename=os.path.join(self.test_dir, "failat-%d-%d" % (pos, fail_at))
+                ) as p:
                     try:
                         p.state.main(fail_at, None, [0, 1, 2], pos)
                     except failure:
