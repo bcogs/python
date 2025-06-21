@@ -14,3 +14,6 @@ build-backend = "setuptools.build_meta"
 line-length = 120
 # 701: multiple statements on one line, e.g. except: something()
 lint.extend-ignore = ["E701"]
+
+[tool.setuptools]
+packages = ["presume"]
