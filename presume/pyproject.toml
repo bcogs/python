@@ -3,6 +3,7 @@ name = "presume"
 version = "0.9.0"
 dependencies = [
   "log @ file://../log",
+  "zstandard",
 ]
 
 [build-system]

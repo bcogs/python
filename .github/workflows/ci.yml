@@ -9,6 +9,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ hashFiles('pyproject.toml') }}
+
+      - name: Install Python dependencies
+        run: pip install .
+
       - name: Lint with Ruff
         uses: astral-sh/ruff-action@v1
         with:
@@ -19,18 +28,25 @@ jobs:
         with:
           args: format --check
 
+      - name: Cache presume golang helper stuff
+        id: zstd-cache
+        uses: actions/cache@v4
+        with:
+          path: presume/zstd_stream
+          key: zstd-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('presume/*.go', 'presume/go.*') }}
+
       - name: Setup go
         uses: actions/setup-go@v5
         with:
           go-version: '1.22'
 
-      - name: Build zstd_stream
-        run: cd presume && go mod init zstd_stream && go mod tidy && go build
-
-      - name: Run go tests
-        run: cd presume && go test
+      - name: Build and test zstd_stream if not fetched from cache
+        if: steps.zstd-cache.outputs.cache-hit != 'true'
+        run: cd presume && go mod init zstd_stream && go mod tidy && go build  && go test
 
       - name: Run tests using system Python
         env:
           RCARCH_ZSTD_STREAM: "${{ github.workspace }}/presume/zstd_stream"
-        run: python3 -m unittest discover -p '*test.py'
+        run: |
+          python3 -m unittest discover -p '*test.py'
+          RCARCH_ZSTD_STREAM=presume/zstd_stream python3 -m unittest presume/rcarch_test.py

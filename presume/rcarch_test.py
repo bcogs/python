@@ -4,7 +4,10 @@ import random
 import tempfile
 import unittest
 
-import rcarch
+try:
+    import rcarch
+except ModuleNotFoundError:
+    from . import rcarch
 
 
 class bytesIO(io.BytesIO):
