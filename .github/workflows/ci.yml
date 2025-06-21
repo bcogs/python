@@ -16,7 +16,7 @@ jobs:
           key: pip-${{ hashFiles('pyproject.toml') }}
 
       - name: Install Python dependencies
-        run: pip install .
+        run: pip install ./presume
 
       - name: Lint with Ruff
         uses: astral-sh/ruff-action@v1
