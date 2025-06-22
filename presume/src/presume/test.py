@@ -138,7 +138,6 @@ class TestIterator(unittest.TestCase):
                     p.state.main(-1, None, [0, 1, 2], 1)
                 self.assertIn("supported", str(cm.exception))
             for fail_at in range(pos, 3):
-                print(pos, fail_at)
                 with presume.context(
                     state(), state_filename=os.path.join(self.test_dir, "failat-%d-%d" % (pos, fail_at))
                 ) as p:

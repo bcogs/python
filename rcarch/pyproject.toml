@@ -3,7 +3,7 @@ name = "rcarch"
 description = "library implementing a compressed archive format that can be re-opened for appending after closing"
 version = "0.9.0"
 dependencies = [
-  "zstandard",
+  "zstandard>=0.20.0",
 ]
 
 [build-system]
