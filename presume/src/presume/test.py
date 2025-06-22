@@ -10,9 +10,9 @@ import tempfile
 import unittest
 
 try:
-    import __init__ as presume
-except ModuleNotFoundError:
     import presume
+except ModuleNotFoundError:
+    import __init__ as presume
 
 
 class failure(Exception):
