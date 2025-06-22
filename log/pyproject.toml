@@ -5,9 +5,6 @@ description = "logging library"
 requires-python = ">=3.8"
 license = { text = "BSD-3-Clause" }
 
-[tool.setuptools]
-packages = ["log"]
-
 [build-system]
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
@@ -16,3 +13,7 @@ build-backend = "setuptools.build_meta"
 line-length = 120
 # 701: multiple statements on one line, e.g. except: something()
 lint.extend-ignore = ["E701"]
+
+[tool.setuptools]
+package-dir = {"" = "log"}
+packages = ["log"]
