@@ -8,9 +8,9 @@ import tempfile
 import unittest
 
 try:
-    import __init__ as log
-except ModuleNotFoundError:
     import log
+except ModuleNotFoundError:
+    import __init__ as log
 
 
 class TestFileSink(unittest.TestCase):
