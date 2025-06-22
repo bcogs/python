@@ -3,7 +3,7 @@ name: CI
 on: [push, pull_request]
 
 jobs:
-  tests-check:
+  test:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout code
@@ -28,15 +28,20 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ~/.cache/pip
-        key: pip-${{ hashFiles('**/pyproject.toml') }}
+        key: "pip-${{ hashFiles('**/pyproject.toml') }}"
 
     - name: Install local packages
       run: |
         for dir in */; do
-            cmd="pip install ./${dir%/}"
-            echo "--[ $cmd ]------------------------------------------"
-            eval "$cmd" || exit 1
+          cmd="pip install ./${dir%/}"
+          echo "--[ $cmd ]------------------------------------------"
+          eval "$cmd" || exit 1
         done
 
-    - name: Run tests using system Python
-      run: python3 -m unittest discover -p '*test.py'
+    - name: Run the tests
+      run: |
+        for dir in */src/*/; do
+          cmd="python3 -m unittest discover -s '${dir%/}' -p '*test.py'"
+          echo "--[ $cmd ]------------------------------------------"
+          eval "$cmd" || exit 1
+        done
