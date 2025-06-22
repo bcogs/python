@@ -32,8 +32,8 @@ jobs:
 
     - name: Install local packages
       run: |
-        for dir in */; do
-          cmd="pip install ./${dir%/}"
+        for dir in */src/*; do
+          cmd="pip install ./${dir%%/*}"
           echo "--[ $cmd ]------------------------------------------"
           eval "$cmd" || exit 1
         done

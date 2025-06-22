@@ -15,5 +15,5 @@ line-length = 120
 lint.extend-ignore = ["E701"]
 
 [tool.setuptools]
-package-dir = {"" = "log"}
+package-dir = {"" = "src"}
 packages = ["log"]

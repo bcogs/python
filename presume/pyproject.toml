@@ -15,5 +15,5 @@ line-length = 120
 lint.extend-ignore = ["E701"]
 
 [tool.setuptools]
-package-dir = {"" = "presume"}
+package-dir = {"" = "src"}
 packages = ["presume"]
