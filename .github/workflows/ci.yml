@@ -3,21 +3,45 @@ name: CI
 on: [push, pull_request]
 
 jobs:
-  fast-check:
+  test:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-      - name: Lint with Ruff
-        uses: astral-sh/ruff-action@v1
-        with:
-          args: check .
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
 
-      - name: Check formatting with Ruff
-        uses: astral-sh/ruff-action@v1
-        with:
-          args: format --check
+    - name: Lint with Ruff
+      uses: astral-sh/ruff-action@v1
+      with:
+        args: check .
 
-      - name: Run tests using system Python
-        run: python3 -m unittest discover -p '*test.py'
+    - name: Check formatting with Ruff
+      uses: astral-sh/ruff-action@v1
+      with:
+        args: format --check
+
+    - name: Cache pip
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: "pip-${{ hashFiles('**/pyproject.toml') }}"
+
+    - name: Install local packages
+      run: |
+        for dir in */src/*; do
+          cmd="pip install ./${dir%%/*}"
+          echo "--[ $cmd ]------------------------------------------"
+          eval "$cmd" || exit 1
+        done
+
+    - name: Run the tests
+      run: |
+        for dir in */src/*/; do
+          cmd="python3 -m unittest discover -s '${dir%/}' -p '*test.py'"
+          echo "--[ $cmd ]------------------------------------------"
+          eval "$cmd" || exit 1
+        done
