@@ -1,9 +1,7 @@
 [project]
 name = "presume"
+description = "library that facilitates resuming from where a program left on restart"
 version = "0.9.0"
-dependencies = [
-  "zstandard",
-]
 
 [build-system]
 requires = ["setuptools"]
