@@ -13,7 +13,7 @@ The format is called RCA (Resumable Compressed Archive) and  it's designed to be
 
 ---
 
-# Classes in this module
+## Classes in this module
 
 - `writer` appends blobs to an RCA archive
 - `reader` iterates over blobs in an RCA archive
@@ -44,11 +44,11 @@ The file is a sequence of *chunks*, each chunk written as:
     - Maximum allowed value: `1 << (number of bits - 1)`.  
       Larger values are reserved for future use.
       If a chunk is shorter than that, then it's the last chunk, anything after is garbage.
-    - It represents the number of bytes of the chunk, including all fields.
+    - It represents the number of bytes of the chunk, including the size field bytes.
     - Size = `0` means the chunk is incomplete (write was interrupted), allowing later appends to safely overwrite it.  Readers should treat 0 size chunks as EOF.
   - Then, a fixed-size *metadata* field, whose semantics are opaque to the outer layer.  The inner layer uses it to store a checksum.
-    Only the last metadata of a chunk with non-zero size is relevant, previous metadata fields must be ignored.
-  - Finally, the *chunk payload bytes*.
+    Only the last metadata of a chunk with a non-zero size field is relevant, previous metadata fields must be ignored.
+  - Finally, the chunk *payload bytes*.
 
 The payload of the last chunk may be followed by trailing garbage if an append was interrupted.  Readers should ignore that garbage, and writers should overwrite it.
 
@@ -108,23 +108,19 @@ The example assumes the write is interrupted at this point.  If it weren't, it w
 
 ## Inner Layer Format (Blob Layer)
 
-The inner layer is written inside as payload of the outer layer, storing compressed blobs and optional reset points.  It uses the outer layer with a 16 bits initial size field, and the metadata is a 64 bits blake2s hash.
+The inner layer is written as payload of the outer layer, storing compressed blobs and optional reset points.  It uses the outer layer with a 16 bits initial size field, and the metadata is a 64 bits blake2s hash.
 
-The data is a sequence of *blocks*, each starting with a little-endian varint:
-  - MSB (bit 7) set to `1` signals more bytes.
-  - The LSB (bit 0) determines the block type:  
-    - `0` = blob block  
-    - `1` = control block
+The data is a sequence of *blocks*, each starting with a little-endian varint, where each byte MSB (bit 7) is set to zero only for the last last byte. The LSB (bit 0) of the varint determines the block type:  `0` = blob block, `1` = control block.
 
 Blob blocks are just zstd compressed data, with no checksums nor flush.  Their size is the value of the varint >> 1.  The compressed data is the name of the blob as a 0 terminated utf-8 string, followed by the blob content.
 
 For control blocks, bits 1-5 of the varint represent the block type, and its remaining bits are a payload size in bytes.  Readers should skip control blocks whose type is unknown to them.
 
-### Reset blocks (block type 0)A reset block signals a reset of the hashing and of the zstd compression state.
+### Reset blocks (block type 0)
 
 Reset blocks signal a reset of the hashing and of the zstd compression state.
 
-The paylod of reset blocks starts with a 64 bits blake2s hash, and any additional payload bytes should be ignored.
+The payload of reset blocks starts with a 64 bits blake2s hash, and any additional payload bytes should be ignored.
 
 The hash covers all inner layer bytes except hash bytes, from the start of the file, or from the previous reset block's varint if there is such a block, up to but not including the varint of the current reset block.
 
@@ -134,9 +130,9 @@ The outer layer metadata acts as a substitute for a hash that would otherwise ha
 
 ### Example 1: Inner layer file with no reset blocks
 
-```
-
 This example shows the inner layer data for three blobs names foo bar and baz.
+
+```
 
 +-------------------------------------------------------------------------------------+
 | Varint: \x42 = 0x42 = 66                                                            |
@@ -184,4 +180,4 @@ The hash of all these inner layer bytes is stored as outer layer metadata.
 +-----------------------------------------------------------------------------------------------------+
 ```
 
-- The final outer layer metadata hashes everything from the varint of the last reset block to the end, except the hash bytes of the reset block.
+The final outer layer metadata hashes everything from the varint of the last reset block to the end, except the hash bytes of the reset block.
