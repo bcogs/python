@@ -7,6 +7,7 @@ import signal
 import socket
 import sys
 import tempfile
+import time
 import unittest
 
 try:
@@ -138,7 +139,6 @@ class TestIterator(unittest.TestCase):
                     p.state.main(-1, None, [0, 1, 2], 1)
                 self.assertIn("supported", str(cm.exception))
             for fail_at in range(pos, 3):
-                print(pos, fail_at)
                 with presume.context(
                     state(), state_filename=os.path.join(self.test_dir, "failat-%d-%d" % (pos, fail_at))
                 ) as p:
@@ -152,3 +152,32 @@ class TestIterator(unittest.TestCase):
                     with self.assertRaises(Exception) as cm:
                         p.state.main(-1, None, [0, 1, 2], pos)
                     self.assertIn("supported", str(cm.exception))
+
+
+class test_signals_masker(unittest.TestCase):
+    def setUp(self):
+        self.mask = signal.pthread_sigmask(signal.SIG_BLOCK, {})
+
+    def tearDown(self):
+        signal.pthread_sigmask(signal.SIG_SETMASK, self.mask)
+
+    def test_deferal(self):
+        received = {}
+
+        def handler(signum, frame):
+            received[signum] = 1
+
+        for signum in presume.signals_masker.MASKABLE_TERMINATING_SIGNALS:
+            received[signum] = 0
+            signal.signal(signum, handler)
+        pid = os.getpid()
+        with presume.signals_masker():
+            for signum in received:
+                os.kill(pid, signum)
+            time.sleep(1)
+            self.assertEqual(0, sum(received.values()))
+        slept = 0
+        while sum(received.values()) < len(received):
+            time.sleep(0.05)
+            slept += 0.05
+            self.assertLess(slept, 3)
