@@ -143,7 +143,7 @@ class _chunk_handler(object):
                 "first_size_bits is too low to accomodate the first header with its metadata and first data bytes"
             )
 
-    def _max_len(self):  # max size of chunk header + its payload + 1
+    def _max_len(self):  # max size of chunk header + its payload
         return 1 << (self._size_bits - 1)
 
     def _size_len(self) -> int:
