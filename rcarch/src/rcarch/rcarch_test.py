@@ -3,11 +3,7 @@ import os
 import random
 import tempfile
 import unittest
-
-try:
-    mock = unittest.mock
-except AttributeError:
-    import mock
+from unittest import mock
 
 try:
     import rcarch
