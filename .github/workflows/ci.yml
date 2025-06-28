@@ -30,11 +30,11 @@ jobs:
       with:
         args: format --check
 
-#    - name: Cache pip
-#      uses: actions/cache@v4
-#      with:
-#        path: ~/.cache/pip
-#        key: "pip-${{ hashFiles('**/pyproject.toml') }}-3"
+    - name: Cache pip
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: "pip-${{ hashFiles('**/pyproject.toml') }}-3"
 
 #    - name: Uninstall wrong zstd package if it's installed
 #      run: pip uninstall -y zstd || true
