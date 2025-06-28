@@ -338,7 +338,7 @@ class chunker(_chunk_handler):
     def _flush(self, level):
         if level > 0:
             self._file.flush()
-            if level > 10:  # XXX 1
+            if level > 1:
                 os.fsync(self._file.fileno())
 
     def _make_header(self, size, meta: bytes) -> bytes:
