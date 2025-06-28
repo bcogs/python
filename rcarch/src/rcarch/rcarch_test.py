@@ -5,6 +5,11 @@ import tempfile
 import unittest
 
 try:
+    mock = unittest.mock
+except AttributeError:
+    import mock
+
+try:
     import rcarch
 except ModuleNotFoundError:
     from . import rcarch
@@ -28,7 +33,7 @@ class chunk_layer_test(unittest.TestCase):
     _META_LEN = len(_DUMMY_META)
 
     def setUp(self):
-        patcher = unittest.mock.patch("os.fsync", side_effect=fake_os_fsync)
+        patcher = mock.patch("os.fsync", side_effect=fake_os_fsync)
         patcher.start()
         self.addCleanup(patcher.stop)
 
