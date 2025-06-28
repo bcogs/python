@@ -141,7 +141,8 @@ class zstd_compressor(object):
             self._runner = _zstd_stream_runner((path,))
         else:
             import zstandard
-            print("USING ZSTANDARD MODULE:", zstandard.__file__) 
+
+            print("USING ZSTANDARD MODULE:", zstandard.__file__)
 
             self._compressed = io.BytesIO()
             self._writer = zstandard.ZstdCompressor(level=3, write_checksum=False).writer(self._compressed)
