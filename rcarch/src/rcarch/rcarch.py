@@ -145,7 +145,7 @@ class zstd_compressor(object):
             print("USING ZSTANDARD MODULE:", zstandard.__file__)
 
             self._compressed = io.BytesIO()
-            self._writer = zstandard.ZstdCompressor(level=3, write_checksum=False).writer(self._compressed)
+            self._writer = zstandard.ZstdCompressor(level=3, write_checksum=False).stream_writer(self._compressed)
             self._FLUSH_BLOCK = zstandard.FLUSH_BLOCK
 
     def __enter__(self):
