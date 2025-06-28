@@ -3,7 +3,6 @@ import os
 import random
 import tempfile
 import unittest
-from unittest import mock
 
 try:
     import rcarch
@@ -12,29 +11,18 @@ except ModuleNotFoundError:
 
 
 class bytesIO(io.BytesIO):
-    all = {}
-
     def __init__(self):
         self.os_fsyncs = 0
 
-    def fileno(self):
-        self.all[id(self)] = self
-        return id(self)
 
-
-def fake_os_fsync(fileno):
-    bytesIO.all[fileno].os_fsyncs += 1
+def flush_bytesio(bytesio):
+    bytesio.os_fsyncs += 1
 
 
 class chunk_layer_test(unittest.TestCase):
     _DUMMY_META = b"test1meta"
     _DUMMY_META2 = b"meta2test"
     _META_LEN = len(_DUMMY_META)
-
-    def setUp(self):
-        patcher = mock.patch("os.fsync", side_effect=fake_os_fsync)
-        patcher.start()
-        self.addCleanup(patcher.stop)
 
     def _write_chunks(self, parts, first_size_bits, file=None, meta_len=_META_LEN):
         if not file:
@@ -44,7 +32,7 @@ class chunk_layer_test(unittest.TestCase):
         n = file.os_fsyncs
         c = rcarch.chunker(file, meta_len, first_size_bits)
         for data, meta in parts:
-            c.append(data, meta)
+            c.append(data, meta, flush=flush_bytesio)
             n += 2
             self.assertEqual(n, file.os_fsyncs)
         if parts:
@@ -150,7 +138,7 @@ class chunk_layer_test(unittest.TestCase):
             self.assertEqual(header_offs, f.tell())
             self.assertEqual(0, header_offs % (1 << 4))
             f.seek(0)
-            rcarch.chunker(f, self._META_LEN, 5).append(b"B", self._DUMMY_META2)
+            rcarch.chunker(f, self._META_LEN, 5).append(b"B", self._DUMMY_META2, flush=flush_bytesio)
             db = d + b"B"
             self.assertEqual((db, self._DUMMY_META2, False), self._read_all(f, 5))
             self.assertGreater(f.tell(), header_offs + 1)  # verify it created a new chunk
@@ -160,7 +148,7 @@ class chunk_layer_test(unittest.TestCase):
             assert f.write(b"\x00" * size_len) == size_len
             self.assertEqual((d, self._DUMMY_META, True), self._read_all(f, 5))
             f.seek(0)
-            rcarch.chunker(f, self._META_LEN, 5).append(b"B", self._DUMMY_META2)
+            rcarch.chunker(f, self._META_LEN, 5).append(b"B", self._DUMMY_META2, flush=flush_bytesio)
             self.assertEqual((db, self._DUMMY_META2, False), self._read_all(f, 5))
             # set the header size to 0 again and truncate, to simulate an append interrupted before the payload is written
             f.seek(header_offs)
@@ -168,7 +156,7 @@ class chunk_layer_test(unittest.TestCase):
             f.truncate(header_offs + size_len + len(self._DUMMY_META))
             self.assertEqual((d, self._DUMMY_META, True), self._read_all(f, 5))
             f.seek(0)
-            rcarch.chunker(f, self._META_LEN, 5).append(b"B", self._DUMMY_META2)
+            rcarch.chunker(f, self._META_LEN, 5).append(b"B", self._DUMMY_META2, flush=flush_bytesio)
             self.assertEqual((db, self._DUMMY_META2, False), self._read_all(f, 5))
             # check what happens if a header could be only partially appended
             size = f.tell()
@@ -176,7 +164,7 @@ class chunk_layer_test(unittest.TestCase):
                 f.truncate(size - n)
                 self.assertEqual((d, self._DUMMY_META, True), self._read_all(f, 5))
                 f.seek(0)
-                rcarch.chunker(f, self._META_LEN, 5).append(b"B", self._DUMMY_META2)
+                rcarch.chunker(f, self._META_LEN, 5).append(b"B", self._DUMMY_META2, flush=flush_bytesio)
                 self.assertEqual((db, self._DUMMY_META2, False), self._read_all(f, 5))
                 self.assertEqual(size, f.tell())
         if single_write:
@@ -189,7 +177,7 @@ class chunk_layer_test(unittest.TestCase):
             meta = self._DUMMY_META if i % 2 else self._DUMMY_META2
             f.seek(0)
             c = rcarch.chunker(f, self._META_LEN, 5)
-            c.append(d, meta)
+            c.append(d, meta, flush=flush_bytesio)
             self.assertEqual(meta, c.meta)
             expected += d
             n *= 2

@@ -126,6 +126,12 @@ def _write(file, data: bytes) -> int:
     return wrote
 
 
+def flush_file(file):
+    "call file.flush() and os.fsync(file.fileno())"
+    file.flush()
+    os.fsync(file.fileno())
+
+
 class _chunk_handler(object):
     "base class for chunker and unchunker"
 
@@ -197,15 +203,14 @@ class chunker(_chunk_handler):
                 return
             self._size_bits *= 2
 
-    def append(self, data: bytes, meta: bytes, flush: int = 2):
+    def append(self, data: bytes, meta: bytes, flush=flush_file):
         """append arbitrary data and replace the metadata
 
         Args:
           data: the payload bytes to append
           metadata: the value of the metadata to set if this payload is written
                     successfully
-          flush: 0 to not flush anything, 1 to call flush() on the file, 2 to
-                 call flush() then os.fsync() on the file descriptor
+          flush: a function that receives the file in argument and flushes it to disk (the default calls file.flush() and os.fsync(file.fileno()), or None for no flushing
         """
         if len(meta) != self._meta_len:
             raise ValueError("metadata has invalid len " + str(len(meta)))
@@ -234,19 +239,15 @@ class chunker(_chunk_handler):
                 self._offset += max_len
                 data = data[chunk_remaining:]
         self._offset += _write(self._file, data)
-        self._flush(flush)
+        if flush:
+            flush(self._file)
         self._file.seek(first_header_offset)
         _write(self._file, first_header)
-        self._flush(flush)
+        if flush:
+            flush(self._file)
         self._file.seek(self._offset)
         self.meta = meta
         return
-
-    def _flush(self, level):
-        if level > 0:
-            self._file.flush()
-            if level > 1:
-                os.fsync(self._file.fileno())
 
     def _make_header(self, size, meta: bytes) -> bytes:
         return size.to_bytes(self._size_len(), "big") + meta
@@ -360,7 +361,7 @@ class writer(object):
     def __exit__(self, *args):
         self.close()
 
-    def append(self, blob_name: str, blob: bytes, flush: int = 2):
+    def append(self, blob_name: str, blob: bytes, flush=flush_file):
         """append a blob fully
 
         The file temporarily has trailing garbage during a call to append, so
@@ -371,8 +372,9 @@ class writer(object):
         Trailing garbage isn't an issue, but avoidinng it is nicer.
 
         Args:
-          flush: 0 to not flush anything, 1 to call flush() on the file, 2 to
-                 call flush() then os.fsync() on the file descriptor
+          blob_name: the name of the blob
+          blob: the content of the blob
+          flush: a function that receives the file in argument and flushes it to disk (the default calls file.flush() and os.fsync(file.fileno()), or None for no flushing
 
         Raises:
           corrupt_archive in certain cases of file corruption
