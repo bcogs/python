@@ -142,8 +142,6 @@ class zstd_compressor(object):
         else:
             import zstandard
 
-            print("USING ZSTANDARD MODULE:", zstandard.__file__)
-
             self._compressed = io.BytesIO()
             self._writer = zstandard.ZstdCompressor(level=3, write_checksum=False).stream_writer(self._compressed)
             self._FLUSH_BLOCK = zstandard.FLUSH_BLOCK
@@ -181,7 +179,7 @@ class zstd_decompressor(object):
         else:
             from zstandard import ZstdDecompressor
 
-            self._reader = ZstdDecompressor()
+            self._reader = ZstdDecompressor().decompressobj()
 
     def __enter__(self):
         return self
@@ -340,7 +338,7 @@ class chunker(_chunk_handler):
     def _flush(self, level):
         if level > 0:
             self._file.flush()
-            if level > 1:
+            if level > 10: # XXX 1
                 os.fsync(self._file.fileno())
 
     def _make_header(self, size, meta: bytes) -> bytes:
