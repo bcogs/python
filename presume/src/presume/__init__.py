@@ -1,5 +1,6 @@
 import os
 import pickle
+import signal
 import tempfile
 
 
@@ -96,3 +97,22 @@ class iterator(object):
             # iteration, so we can't iterate again
             raise Exception("calling set_position after the iteration ended isn't supported")
         self._index = position
+
+
+class signals_masker(object):
+    """Context manager that masks signals."""
+
+    MASKABLE_TERMINATING_SIGNALS = frozenset(
+        {signal.SIGINT, signal.SIGTERM, signal.SIGQUIT, signal.SIGABRT, signal.SIGALRM, signal.SIGUSR1, signal.SIGUSR2}
+    )
+
+    def __init__(self, signals_to_mask=MASKABLE_TERMINATING_SIGNALS):
+        "signals_to_mask is a set {signal.SIGTERM, ...} that will be masked in addition to whatever was already masked before entering the context"
+        self.signals_to_mask = signals_to_mask
+
+    def __enter__(self):
+        self._before = signal.pthread_sigmask(signal.SIG_BLOCK, self.signals_to_mask)
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_tb):
+        signal.pthread_sigmask(signal.SIG_SETMASK, self._before)
