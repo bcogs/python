@@ -140,10 +140,10 @@ class zstd_compressor(object):
         if path:
             self._runner = _zstd_stream_runner((path,))
         else:
-            import zstandard
+            from zstandard import ZstdCompressor
 
             self._compressed = io.BytesIO()
-            self._writer = zstandard.ZstdCompressor(level=3, write_checksum=False).stream_writer(self._compressed)
+            self._writer = ZstdCompressor(level=3, write_checksum=False).stream_writer(self._compressed)
             self._FLUSH_BLOCK = zstandard.FLUSH_BLOCK
 
     def __enter__(self):
