@@ -47,8 +47,9 @@ jobs:
           eval "$cmd" || exit 1
         done
 
-    - name: Ensure zstd is the zstandaard package
-      run: pip freeze | grep -i '^zstd' && (echo "BAD PACKAGE zstd found!" && exit 1) || echo "OK: no zstd installed."
+    - name: Ensure zstd is the zstandard package
+      run: |
+        pip freeze | grep -i '^zstd' && (echo "BAD PACKAGE zstd found!" && exit 1) || echo "OK: no zstd installed."
 
     - name: Run the tests
       run: |
