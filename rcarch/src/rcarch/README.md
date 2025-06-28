@@ -146,7 +146,7 @@ This example shows the inner layer data for three blobs names foo bar and baz.
 | (626 >> 1 = 313 bytes payload Zstd("bar\x00..."), type=blob)                        |
 +-------------------------------------------------------------------------------------+
 | Varint: \x84\xa3\x06 = (0x84 & 0x7f) + ((0xa3 & 0x7f) << 7) + (0x06 << 14) = 102788 |
-| (102788 >> 51394 bytes payload Zstd("baz\x00..."), type=blob) |
+| (102788 >> 51394 bytes payload Zstd("baz\x00..."), type=blob)                       |
 +-------------------------------------------------------------------------------------+
 ```
 
