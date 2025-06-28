@@ -11,23 +11,26 @@ except ModuleNotFoundError:
 
 
 class bytesIO(io.BytesIO):
+    def __init__(self):
+        self.os_fsyncs = 0
+
     def fileno(self):
-        return 1  # will be used for os.fsync()
+        return self  # will be used for os.fsync(), which itself will be patched
 
 
-class test_with_temp_file(unittest.TestCase):
-    def setUp(self):
-        with tempfile.NamedTemporaryFile(delete=False) as tf:
-            self.path = tf.name
-
-    def tearDown(self):
-        os.remove(self.path)
+def fake_os_fsync(fileno):
+    fileno.os_fsyncs += 1
 
 
 class chunk_layer_test(unittest.TestCase):
     _DUMMY_META = b"test1meta"
     _DUMMY_META2 = b"meta2test"
     _META_LEN = len(_DUMMY_META)
+
+    def setUp(self):
+        patcher = unittest.mock.patch("os.fsync", side_effect=fake_os_fsync)
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def _write_chunks(self, parts, first_size_bits, file=None, meta_len=_META_LEN):
         if not file:
@@ -303,6 +306,15 @@ class chunk_layer_test(unittest.TestCase):
             self._write_chunks([(b"B", self._DUMMY_META)], 5, file=f)
             d += b"B"
             self.assertEqual((d, self._DUMMY_META, False), self._read_all(f, 5))
+
+
+class test_with_temp_file(unittest.TestCase):
+    def setUp(self):
+        with tempfile.NamedTemporaryFile(delete=False) as tf:
+            self.path = tf.name
+
+    def tearDown(self):
+        os.remove(self.path)
 
 
 class rcarch_test(test_with_temp_file):
