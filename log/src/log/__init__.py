@@ -7,20 +7,17 @@ import time
 from typing import Any
 
 DBG = 0  # or negative for verbose debug
-INFO = 1
-WARN = 2
-ERR = 3
-FATAL = 4
-LEVELS = ("debug", "info", "warning", "error", "fatal")
-
-
-default_logger = None
+INFO = 1  # lowest level written to file by default, if a log file is setup
+TELL = 2  # lowest level written to stderr by default
+WARN = 3
+ERR = 4
+FATAL = 5  # by default, exits the program after logging
+LEVELS = ("debug", "info", "tell", "warning", "error", "fatal")
 
 
 def setup_default(*args, **kwargs):
-    """Initialize the default logger, must be called exactly once to use the module top level logging functions."""
+    """Initialize the default logger, used for the module top level logging functions."""
     global default_logger
-    assert default_logger is None
     default_logger = logger(file_sink(*args, **kwargs))
     return default_logger
 
@@ -37,43 +34,41 @@ def setup_default_as_ram_sink():
 
 def log(*args, **kwargs):
     """Log at an arbitrary level, args are the same as those of make()."""
-    assert default_logger is not None, "log() was called before setup_default"
     default_logger.log(*args, **kwargs)
 
 
 def v(*args, **kwargs):
     """Log at a verbose debug level, the higher the more verbose."""
-    assert default_logger is not None, "v() was called before setup_default"
     default_logger.v(*args, **kwargs)
 
 
 def dbg(*args, **kwargs):
     """Log at level debug."""
-    assert default_logger is not None, "dbg() was called before setup_default"
     default_logger.dbg(*args, **kwargs)
 
 
 def info(*args, **kwargs):
     """Log at level info."""
-    assert default_logger is not None, "info() was called before setup_default"
     default_logger.info(*args, **kwargs)
+
+
+def tell(*args, **kwargs):
+    """Log at level tell."""
+    default_logger.tell(*args, **kwargs)
 
 
 def warn(*args, **kwargs):
     """Log at level warning."""
-    assert default_logger is not None, "warn() was called before setup_default"
     default_logger.warn(*args, **kwargs)
 
 
 def err(*args, **kwargs):
     """Log at level error."""
-    assert default_logger is not None, "err() was called before setup_default"
     default_logger.err(*args, **kwargs)
 
 
 def fatal(*args, **kwargs):
     """Log at level fatal, which exits by default."""
-    assert default_logger is not None, "fatal() was called before setup_default"
     default_logger.fatal(*args, **kwargs)
 
 
@@ -111,6 +106,10 @@ class logger(object):
     def info(self, fmt, *args: list[Any], **kwargs: dict[str, Any]):
         """Log at level info."""
         self.log(INFO, fmt, *args, **kwargs)
+
+    def tell(self, fmt, *args: list[Any], **kwargs: dict[str, Any]):
+        """Log at level tell."""
+        self.log(TELL, fmt, *args, **kwargs)
 
     def warn(self, fmt, *args: list[Any], **kwargs: dict[str, Any]):
         """Log at level warning."""
@@ -177,7 +176,7 @@ class file_sink(object):
     It's also a context manager, it flushes and closes any open file when exiting.
     """
 
-    def __init__(self, file_path=None, stderr_level=WARN, file_level=DBG):
+    def __init__(self, file_path=None, stderr_level=TELL, file_level=DBG):
         self.stderr_level, self.file_level = stderr_level, file_level
         if file_path is None:
             self.file = tempfile.NamedTemporaryFile(
@@ -231,3 +230,6 @@ class ram_sink(object):
 
     def log(self, level, fmt, *args, **kwargs):
         self.logs.append(make(level, fmt, *args, **kwargs))
+
+
+default_logger = logger(file_sink())
