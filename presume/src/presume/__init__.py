@@ -4,6 +4,25 @@ import signal
 import tempfile
 
 
+class signals_masker(object):
+    """Context manager that masks signals."""
+
+    MASKABLE_TERMINATING_SIGNALS = frozenset(
+        {signal.SIGINT, signal.SIGTERM, signal.SIGQUIT, signal.SIGABRT, signal.SIGALRM, signal.SIGUSR1, signal.SIGUSR2}
+    )
+
+    def __init__(self, signals_to_mask=MASKABLE_TERMINATING_SIGNALS):
+        "signals_to_mask is a set {signal.SIGTERM, ...} that will be masked in addition to whatever was already masked before entering the context"
+        self.signals_to_mask = signals_to_mask
+
+    def __enter__(self):
+        self._before = signal.pthread_sigmask(signal.SIG_BLOCK, self.signals_to_mask)
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_tb):
+        signal.pthread_sigmask(signal.SIG_SETMASK, self._before)
+
+
 class context(object):
     """Context that facilitates resuming a program from where it left after it exits.
 
@@ -29,14 +48,15 @@ class context(object):
         # the above will run step0() then step1() unless those steps already succeeded and were persisted, which happens when the context exits
     """
 
-    def __init__(self, state, state_filename=None):
+    def __init__(self, state, state_filename=None, mask_signals=signals_masker.MASKABLE_TERMINATING_SIGNALS):
         """Ctor.
 
         Parameters:
             state: Initial state to use when the state file is absent.
             state_filename: Initial state to use, if present.  It should contain a pickled object of the same type as state.
+            mask_signals: None or a set {signal.SIGTERM, ...} that will be masked while persisting state."
         """
-        self.state_filename = state_filename
+        self.state_filename, self.mask_signals = state_filename, mask_signals
         if state_filename:
             try:
                 with open(state_filename, "rb") as f:
@@ -54,10 +74,12 @@ class context(object):
         if not self.state_filename:
             return
         dir_name = os.path.dirname(self.state_filename)
-        with tempfile.NamedTemporaryFile("wb", dir=dir_name, delete=False) as tmp:
-            pickle.dump(self.state, tmp)
-            tmp_path = tmp.name
-        os.replace(tmp_path, self.state_filename)
+        mask = self.mask_signals if self.mask_signals else {}
+        with signals_masker(signals_to_mask=mask):
+            with tempfile.NamedTemporaryFile("wb", dir=dir_name, delete=False) as tmp:
+                pickle.dump(self.state, tmp)
+                tmp_path = tmp.name
+            os.replace(tmp_path, self.state_filename)
 
 
 class iterator(object):
@@ -97,22 +119,3 @@ class iterator(object):
             # iteration, so we can't iterate again
             raise Exception("calling set_position after the iteration ended isn't supported")
         self._index = position
-
-
-class signals_masker(object):
-    """Context manager that masks signals."""
-
-    MASKABLE_TERMINATING_SIGNALS = frozenset(
-        {signal.SIGINT, signal.SIGTERM, signal.SIGQUIT, signal.SIGABRT, signal.SIGALRM, signal.SIGUSR1, signal.SIGUSR2}
-    )
-
-    def __init__(self, signals_to_mask=MASKABLE_TERMINATING_SIGNALS):
-        "signals_to_mask is a set {signal.SIGTERM, ...} that will be masked in addition to whatever was already masked before entering the context"
-        self.signals_to_mask = signals_to_mask
-
-    def __enter__(self):
-        self._before = signal.pthread_sigmask(signal.SIG_BLOCK, self.signals_to_mask)
-        return self
-
-    def __exit__(self, exc_type, exc_value, exc_tb):
-        signal.pthread_sigmask(signal.SIG_SETMASK, self._before)
