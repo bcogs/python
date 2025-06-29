@@ -13,7 +13,7 @@ except ModuleNotFoundError:
     import __init__ as log
 
 
-class TestFileSink(unittest.TestCase):
+class test_file_sink(unittest.TestCase):
     def setUp(self):
         self.test_dir = tempfile.mkdtemp()
 
@@ -41,6 +41,7 @@ class TestFileSink(unittest.TestCase):
         with contextlib.redirect_stderr(buf):
             sink.log(log.DBG, "debug")
             sink.log(log.INFO, "info %d", 6)
+            sink.log(log.TELL, "tell %s %d", "foo", 42)
             sink.log(log.WARN, "warn %(foo)s", foo="bar")
             sink.log(log.ERR, "invalid *args %s", "foo", "bar")
         stderr = buf.getvalue()
@@ -50,6 +51,7 @@ class TestFileSink(unittest.TestCase):
                 "\n".join(
                     (
                         r"^I.*info 6",
+                        r"^T.*tell foo 42",
                         r"^W.*warn bar",
                         r"^E.*format.*invalid \*args.*foo.*bar.*log/test\.py.*line \d+",
                     )
@@ -84,6 +86,7 @@ class TestFileSink(unittest.TestCase):
         with log.file_sink(file_path=fpath, stderr_level=log.FATAL + 1) as sink:
             sink.log(log.DBG, "valid *args %s %d", "foo", -5)
             sink.log(log.INFO, "valid **kwargs %(foo)s %(bar)d", foo="foo", bar=3)
+            sink.log(log.TELL, "valid nothing")
             sink.log(log.WARN, "invalid *args %s %s %s", "foo")
             sink.log(log.WARN, "invalid **kwargs %(foo)s", bar="baz")
             sink.log(log.FATAL, "invalid empty *args %s %d")
@@ -98,6 +101,7 @@ class TestFileSink(unittest.TestCase):
                     (
                         r"^D\d\d\d\d \d\d:\d\d:\d\d valid \*args foo -5",
                         r"^I\d\d\d\d \d\d:\d\d:\d\d valid \*\*kwargs foo 3",
+                        r"^T\d\d\d\d \d\d:\d\d:\d\d valid nothing",
                         r"^E\d\d\d\d \d\d:\d\d:\d\d log format error.*invalid \*args %s %s %s.*foo.*log/test\.py.*line \d+.*",
                         r"^E\d\d\d\d \d\d:\d\d:\d\d log format error.*invalid \*\*kwargs.*foo.*bar.*baz.*log/test\.py.*line \d+.*",
                         r"^F\d\d\d\d \d\d:\d\d:\d\d log format error.*invalid empty \*args %s %d.*log/test\.py.*line \d+.*",
@@ -111,15 +115,17 @@ class TestFileSink(unittest.TestCase):
         )
 
 
-class TestRamSink(unittest.TestCase):
+class test_ram_sink(unittest.TestCase):
     def test_valid_args(self):
         sink = log.ram_sink()
         sink.log(log.INFO, "info")
+        sink.log(log.TELL, "tell")
         sink.log(log.WARN, "warn %d", 5)
         sink.log(log.ERR, "err %(foo)s", foo="bar")
         self.assertEqual(
             [
                 (log.INFO, "info"),
+                (log.TELL, "tell"),
                 (log.WARN, "warn 5"),
                 (log.ERR, "err bar"),
             ],
@@ -134,7 +140,7 @@ class TestRamSink(unittest.TestCase):
         self.assertRegex(sink.logs[1][1], "info.*foo")
 
 
-class TestMake(unittest.TestCase):
+class test_make(unittest.TestCase):
     def test_valid(self):
         self.assertEqual((log.INFO, "foo"), log.make(log.INFO, "foo"))
         self.assertEqual((log.WARN, "foo bar 4"), log.make(log.WARN, "foo %s %d", "bar", 4))
@@ -170,7 +176,7 @@ class TestMake(unittest.TestCase):
         self.assertIn("bar", m)
 
 
-class TestLogger(unittest.TestCase):
+class test_logger(unittest.TestCase):
     def test_die(self):
         with self.assertRaises(SystemExit):
             log.logger(log.ram_sink()).die()
@@ -182,6 +188,7 @@ class TestLogger(unittest.TestCase):
             ("v", 3, -3),
             ("dbg", log.DBG),
             ("info", log.INFO),
+            ("tell", log.TELL),
             ("warn", log.WARN),
             ("err", log.ERR),
             ("fatal", log.FATAL),
@@ -222,42 +229,53 @@ class TestLogger(unittest.TestCase):
             self.assertRegex(rl.sink.logs[len(rl.sink.logs) - 1][1], "log/test\.py.*line \d+")
 
 
-class TestDefault(unittest.TestCase):
+class test_default(unittest.TestCase):
     def setUp(self):
-        self.test_dir = tempfile.mkdtemp()
+        self.backup_default = log.default_logger
 
     def tearDown(self):
-        shutil.rmtree(self.test_dir)
+        log.default_logger = self.backup_default
 
     def test_default_logging(self):
-        dl = log.setup_default(stderr_level=log.FATAL + 1)
-        assert dl.sink is not None
-        assert dl.sink.file is not None
-        file_path = dl.sink.file.name
-        try:
+        buf = io.StringIO()
+        with contextlib.redirect_stderr(buf):
             log.v(1, "verbose")
             log.dbg("dbg")
             log.info("info %d", 2)
+            log.tell("tell %s", "blah")
             log.warn("warn %(foo)s", foo="foo")
             log.err("err")
             with self.assertRaises(SystemExit):
                 log.fatal("fatal")
-            with open(file_path) as f:
-                s = f.read()
-                self.assertNotIn("verbose", s)
-                self.assertIn("dbg", s)
-                self.assertIn("info 2", s)
-                self.assertIn("warn foo", s)
-                self.assertIn("err", s)
-                self.assertIn("fatal", s)
-            # check default logging can be setup only once
-            with self.assertRaises(AssertionError):
-                log.setup_default()
-        finally:
-            os.remove(file_path)
+        s = buf.getvalue()
+        self.assertNotIn("verbose", s)
+        self.assertNotIn("dbg", s)
+        self.assertNotIn("info 2", s)
+        self.assertIn("tell blah", s)
+        self.assertIn("warn foo", s)
+        self.assertIn("err", s)
+        self.assertIn("fatal", s)
+
+    def test_setup_default(self):
+        with tempfile.NamedTemporaryFile() as f:
+            log.setup_default(file_path=f.name)
+            buf = io.StringIO()
+            with contextlib.redirect_stderr(buf):
+                log.info("info")
+                log.tell("tell")
+                log.warn("warn")
+            stderr = buf.getvalue()
+            with open(f.name) as f2:
+                file_content = f2.read()
+        self.assertIn("info", file_content)
+        self.assertNotIn("info", stderr)
+        self.assertIn("tell", file_content)
+        self.assertIn("tell", stderr)
+        self.assertIn("warn", file_content)
+        self.assertIn("warn", stderr)
 
 
-class TestStackTrace(unittest.TestCase):
+class test_stack_trace(unittest.TestCase):
     def test_stack_trace(self):
         try:
             raise BaseException("blah")
