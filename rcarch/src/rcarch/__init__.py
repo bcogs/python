@@ -6,6 +6,11 @@ import socket
 import subprocess
 
 
+def open_or_create(file_path):
+    "open a file in binary mode, creating it if needed, with file pointer at offset 0"
+    return os.fdopen(os.open(file_path, os.O_RDWR | os.O_CREAT, 0o666), "r+b")
+
+
 class _zstd_stream_runner(object):
     "base class enabling its children to run and use the external zstd_stream executable"
 
