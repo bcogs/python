@@ -7,7 +7,7 @@ import unittest
 try:
     import rcarch
 except ModuleNotFoundError:
-    from . import rcarch
+    import __init__ as rcarch
 
 
 class bytesIO(io.BytesIO):
