@@ -4,6 +4,7 @@ version = "0.9.0"
 description = "library to interact with the www"
 requires-python = ">=3.8"
 license = { text = "BSD-3-Clause" }
+dependencies = ["requests"]
 
 [build-system]
 requires = ["setuptools"]
