@@ -1,0 +1,20 @@
+[project]
+name = "www"
+version = "0.9.0"
+description = "library to interact with the www"
+requires-python = ">=3.8"
+license = { text = "BSD-3-Clause" }
+dependencies = ["requests"]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.ruff]
+line-length = 120
+# 701: multiple statements on one line, e.g. except: something()
+lint.extend-ignore = ["E701"]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+packages = ["www"]
