@@ -26,21 +26,39 @@ class state(object):
         self.started_steps = []
         self.completed_steps = []
 
-    def main(self, failing_step, fail_func, sequence=None, set_pos=None):
-        iterator = (
-            range(self.step, 10)
-            if sequence is None
-            else self.__dict__.setdefault("iterator", presume.iterator(sequence))
-        )
+    def main(
+        self,
+        failing_step: int,
+        fail_func,
+        sequence=None,
+        set_pos=None,
+        set_pos_while_iterating={},
+        test_case: unittest.TestCase = None,
+    ):
+        if sequence is None:
+            expected_final_pos = 10
+            iterator = range(self.step, expected_final_pos)
+        else:
+            expected_final_pos = len(sequence)
+            iterator = self.__dict__.setdefault("iterator", presume.iterator(sequence))
         if set_pos is not None:
             iterator.set_position(set_pos)
         for self.step in iterator:
+            sp = set_pos_while_iterating.get(self.step, None)
+            if sp is not None:
+                iterator.set_position(sp)
+                del set_pos_while_iterating[self.step]
+                self.step = sp
+            if test_case:
+                test_case.assertEqual(self.step, iterator.get_position())
             self.started_steps.append(self.step)
             if self.step == failing_step:
                 if fail_func:
                     fail_func()
                 raise failure(self.step)
             self.completed_steps.append(self.step)
+        if test_case:
+            test_case.assertEqual(expected_final_pos, iterator.get_position())
 
 
 def sigpipe():
@@ -53,7 +71,7 @@ def sigpipe():
         parent.close()
 
 
-class TestContext(unittest.TestCase):
+class context_test(unittest.TestCase):
     def setUp(self):
         self.test_dir = tempfile.mkdtemp()
 
@@ -101,7 +119,7 @@ class TestContext(unittest.TestCase):
                 os.remove(state_file)
 
 
-class TestIterator(unittest.TestCase):
+class iterator_combined_with_context_test(unittest.TestCase):
     def setUp(self):
         self.test_dir = tempfile.mkdtemp()
 
@@ -130,7 +148,7 @@ class TestIterator(unittest.TestCase):
             self.assertEqual([0, 1, 1, 2], p.state.started_steps)
             self.assertEqual([0, 1, 2], p.state.completed_steps)
 
-    def test_set_position(self):
+    def test_set_position_before_iterating(self):
         for pos in [0, 1, 2]:
             with presume.context(state(), state_filename=os.path.join(self.test_dir, "nofailure-%d" % pos)) as p:
                 p.state.main(-1, None, [0, 1, 2], pos)
@@ -143,15 +161,39 @@ class TestIterator(unittest.TestCase):
                     state(), state_filename=os.path.join(self.test_dir, "failat-%d-%d" % (pos, fail_at))
                 ) as p:
                     try:
-                        p.state.main(fail_at, None, [0, 1, 2], pos)
+                        p.state.main(fail_at, None, sequence=[0, 1, 2], set_pos=pos)
                     except failure:
                         self.assertEqual(list(range(pos, fail_at + 1)), p.state.started_steps)
                     p.state.main(-1, None, [0, 1, 2], pos)
                     self.assertEqual(list(range(pos, fail_at + 1)) + list(range(pos, 3)), p.state.started_steps)
                     self.assertEqual(list(range(pos, fail_at)) + list(range(pos, 3)), p.state.completed_steps)
                     with self.assertRaises(Exception) as cm:
-                        p.state.main(-1, None, [0, 1, 2], pos)
+                        p.state.main(-1, None, sequence=[0, 1, 2], set_pos=pos)
                     self.assertIn("supported", str(cm.exception))
+
+    def test_set_position_while_iterating_without_failure(self):
+        with presume.context(
+            state(), state_filename=os.path.join(self.test_dir, "set-pos-while-iterating-without-failure")
+        ) as p:
+            p.state.main(-1, None, sequence=list(range(5)), set_pos_while_iterating={3: 1}, test_case=self)
+            self.assertEqual([0, 1, 2, 1, 2, 3, 4], p.state.started_steps)
+            self.assertEqual([0, 1, 2, 1, 2, 3, 4], p.state.completed_steps)
+
+    def test_set_position_while_iterating_with_failure(self):
+        for failing_step in (3, 4):
+            with presume.context(
+                state(),
+                state_filename=os.path.join(self.test_dir, "set-pos-while-iterating-with-failure%d" % failing_step),
+            ) as p:
+                with self.assertRaises(failure):
+                    p.state.main(
+                        failing_step, None, sequence=list(range(5)), set_pos_while_iterating={1: 3}, test_case=self
+                    )
+                p.state.main(-1, None, sequence=list(range(5)), set_pos_while_iterating={1: 3}, test_case=self)
+                self.assertEqual(
+                    [0] + list(range(3, failing_step + 1)) + list(range(failing_step, 5)), p.state.started_steps
+                )
+                self.assertEqual([0, 3, 4], p.state.completed_steps)
 
 
 class test_signals_masker(unittest.TestCase):
