@@ -3,7 +3,7 @@ import requests.adapters
 import time
 
 
-class _retrying_http_adapter(requests.adapters.HTTPAdapter, logger=None):
+class _retrying_http_adapter(requests.adapters.HTTPAdapter):
     _sleep = time.sleep
 
     def __init__(self, max_retries: int = 0, backoff0_seconds: float = 0.5, logger=None):
