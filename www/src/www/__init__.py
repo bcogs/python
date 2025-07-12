@@ -24,7 +24,7 @@ class _retrying_http_adapter(requests.adapters.HTTPAdapter):
                     response.status_code,
                     response.reason,
                 )
-            _retrying_http_adapter._sleep(backoff_seconds, logger=self._logger)
+            _retrying_http_adapter._sleep(backoff_seconds)
             i += 1
             backoff_seconds *= 2
 
