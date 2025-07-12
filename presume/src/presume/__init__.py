@@ -95,21 +95,24 @@ class iterator(object):
         self._index, self._sequence = 0, sequence
 
     def __iter__(self):
-        if hasattr(self, "_index"):
+        if hasattr(self, "_sequence"):
             self._index -= 1
         return self
 
     def __next__(self):
-        if not hasattr(self, "_index"):
+        if not hasattr(self, "_sequence"):
             raise StopIteration
         self._index += 1
         if self._index >= len(self._sequence):
-            del self._index
             del self._sequence
             raise StopIteration
         return self._sequence[self._index]
 
-    def set_position(self, position=0):
+    def get_position(self) -> int:
+        """Get the current iterator position."""
+        return self._index
+
+    def set_position(self, position: int = 0):
         """Set the iterator to a given position.
 
         Musnt't be called after the iteration ends successfully.
