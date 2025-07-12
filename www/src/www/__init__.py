@@ -22,10 +22,30 @@ class _retrying_http_adapter(requests.adapters.HTTPAdapter):
             backoff_seconds *= 2
 
 
+class response(requests.Response):
+    def raise_for_status(self):
+        try:
+            super().raise_for_status()
+            return
+        except requests.HTTPError:
+            pass
+        raise requests.HTTPError(
+            "HTTP error: %d %r for url %s\nResponse body:\n%s"
+            % (self.status_code, self.reason, self.url, self.text[:1000])
+        )
+
+
+class session(requests.Session):
+    def request(self, *args, **kwargs):
+        resp = super().request(*args, **kwargs)
+        resp.__class__ = response
+        return resp
+
+
 def new_session(max_retries: int = 0, backoff0_seconds: float = 0.5) -> requests.Session:
     "create a new session that retries faileds requests up to max_retries times with exponential backoff starting at backoff0_seconds"
-    session = requests.Session()
+    sess = session()
     adapter = _retrying_http_adapter(max_retries=max_retries, backoff0_seconds=backoff0_seconds)
-    session.mount("http://", adapter)
-    session.mount("https://", adapter)
-    return session
+    sess.mount("http://", adapter)
+    sess.mount("https://", adapter)
+    return sess
