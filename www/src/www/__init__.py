@@ -23,6 +23,7 @@ class _retrying_http_adapter(requests.adapters.HTTPAdapter):
                     request.url,
                     response.status_code,
                     response.reason,
+                    backoff_seconds,
                 )
             _retrying_http_adapter._sleep(backoff_seconds)
             i += 1
