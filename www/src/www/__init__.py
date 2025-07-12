@@ -20,10 +20,7 @@ class _retrying_http_adapter(requests.adapters.HTTPAdapter):
             if self._logger:
                 self._logger.warn(
                     "request to %s returned %d %r, waiting %r seconds and retrying",
-                    request.url,
-                    response.status_code,
-                    response.reason,
-                )
+                    request.url, response.status_code, response.reason, backoff_seconds)
             _retrying_http_adapter._sleep(backoff_seconds)
             i += 1
             backoff_seconds *= 2
