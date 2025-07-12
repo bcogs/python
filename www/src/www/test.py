@@ -1,6 +1,7 @@
 import http.server
 import requests
 import threading
+import traceback
 import urllib3.exceptions
 import urllib.parse
 import unittest
@@ -72,3 +73,15 @@ class test_new_session(unittest.TestCase):
                     resp.raise_for_status()
                 self.assertIn("kaputt", resp.text)
             self.assertEqual([0.5 * 2**i for i in range(min(failures, 3))], self.sleeps)
+
+    def test_error_details(self):
+        sess = www.new_session(max_retries=1)
+        resp = sess.get(self.url + "?failures=100&failures_id=test_error_details")
+        try:
+            resp.raise_for_status()
+            assert not "the above line should have raised an exception"
+        except requests.HTTPError:
+            tb = traceback.format_exc()
+            self.assertIn("500", tb)
+            self.assertIn("oh noooo", tb)
+            self.assertIn("kaputt", tb)
