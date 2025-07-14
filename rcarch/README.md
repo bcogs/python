@@ -15,12 +15,12 @@ The format is called RCA (Resumable Compressed Archive) and  it's designed to be
 
 ## Classes in this module
 
-- `writer` appends blobs to an RCA archive
-- `reader` iterates over blobs in an RCA archive
-- `chunker` writes the outer chunk layer format
-- `unchunker` reads the outer chunk layer format
-- `zstd_compressor` compresses blobs using zstd
-- `zstd_decompressor` decompresses zstd-compressed blob streams
+- `Writer` appends blobs to an RCA archive
+- `Reader` iterates over blobs in an RCA archive
+- `Chunker` writes the outer chunk layer format
+- `Unchunker` reads the outer chunk layer format
+- `ZstdCompressor` compresses blobs using zstd
+- `ZstdDecompressor` decompresses zstd-compressed blob streams
 
 ---
 

@@ -1,4 +1,3 @@
-# to run the tests:   pushd .. && python3 -m unittest log.test; popd
 import contextlib
 import io
 import os
@@ -13,7 +12,7 @@ except ModuleNotFoundError:
     import __init__ as log
 
 
-class test_file_sink(unittest.TestCase):
+class FileSinkTest(unittest.TestCase):
     def setUp(self):
         self.test_dir = tempfile.mkdtemp()
 
@@ -23,7 +22,7 @@ class test_file_sink(unittest.TestCase):
     def test_log_to_file(self):
         for file_level in (-2, log.DBG, log.WARN):
             fpath = os.path.join(self.test_dir, "file_level%d" % file_level)
-            with log.file_sink(file_path=fpath, stderr_level=log.FATAL + 1, file_level=file_level) as sink:
+            with log.FileSink(file_path=fpath, stderr_level=log.FATAL + 1, file_level=file_level) as sink:
                 for level in range(-4, log.FATAL):
                     sink.log(level, "foo %d", level)
             with open(fpath) as f:
@@ -36,7 +35,7 @@ class test_file_sink(unittest.TestCase):
                 self.assertEqual(log.FATAL - file_level, nlines)
 
     def test_log_only_to_stderr(self):
-        sink = log.file_sink(stderr_level=log.INFO, file_path="")
+        sink = log.FileSink(stderr_level=log.INFO, file_path="")
         buf = io.StringIO()
         with contextlib.redirect_stderr(buf):
             sink.log(log.DBG, "debug")
@@ -63,7 +62,7 @@ class test_file_sink(unittest.TestCase):
 
     def log_to_both_file_and_stderr(self):
         fpath = os.path.join(self.test_dir, "foo")
-        with log.file_sink(stderr_level=log.INFO, file_path=fpath) as sink:
+        with log.FileSink(stderr_level=log.INFO, file_path=fpath) as sink:
             buf = io.StringIO()
             with contextlib.redirect_stderr(buf):
                 sink.log(log.WARN, "warning")
@@ -73,7 +72,7 @@ class test_file_sink(unittest.TestCase):
 
     def test_it_does_not_go_bananas_when_logging_binary_rubbish(self):
         fpath = os.path.join(self.test_dir, "foo")
-        with log.file_sink(stderr_level=log.INFO, file_path=fpath) as sink:
+        with log.FileSink(stderr_level=log.INFO, file_path=fpath) as sink:
             buf = io.StringIO()
             with contextlib.redirect_stderr(buf):
                 sink.log(log.ERR, "binary rubbish \xff")
@@ -83,7 +82,7 @@ class test_file_sink(unittest.TestCase):
 
     def test_various_log_args(self):
         fpath = os.path.join(self.test_dir, "foo")
-        with log.file_sink(file_path=fpath, stderr_level=log.FATAL + 1) as sink:
+        with log.FileSink(file_path=fpath, stderr_level=log.FATAL + 1) as sink:
             sink.log(log.DBG, "valid *args %s %d", "foo", -5)
             sink.log(log.INFO, "valid **kwargs %(foo)s %(bar)d", foo="foo", bar=3)
             sink.log(log.TELL, "valid nothing")
@@ -115,9 +114,9 @@ class test_file_sink(unittest.TestCase):
         )
 
 
-class test_ram_sink(unittest.TestCase):
+class RamSinkTest(unittest.TestCase):
     def test_valid_args(self):
-        sink = log.ram_sink()
+        sink = log.RamSink()
         sink.log(log.INFO, "info")
         sink.log(log.TELL, "tell")
         sink.log(log.WARN, "warn %d", 5)
@@ -133,14 +132,14 @@ class test_ram_sink(unittest.TestCase):
         )
 
     def test_invalid_args(self):
-        sink = log.ram_sink()
+        sink = log.RamSink()
         sink.log(log.DBG, "dbg", "foo")
         self.assertRegex(sink.logs[0][1], "dbg.*foo")
         sink.log(log.INFO, "info %(foo)s")
         self.assertRegex(sink.logs[1][1], "info.*foo")
 
 
-class test_make(unittest.TestCase):
+class MakeTest(unittest.TestCase):
     def test_valid(self):
         self.assertEqual((log.INFO, "foo"), log.make(log.INFO, "foo"))
         self.assertEqual((log.WARN, "foo bar 4"), log.make(log.WARN, "foo %s %d", "bar", 4))
@@ -176,13 +175,13 @@ class test_make(unittest.TestCase):
         self.assertIn("bar", m)
 
 
-class test_logger(unittest.TestCase):
+class LoggerTest(unittest.TestCase):
     def test_die(self):
         with self.assertRaises(SystemExit):
-            log.logger(log.ram_sink()).die()
+            log.Logger(log.RamSink()).die()
 
     def test_log_functions(self):
-        rl = log.logger(log.ram_sink())
+        rl = log.Logger(log.RamSink())
         for x in (
             ("log", log.WARN, log.WARN),
             ("v", 3, -3),
@@ -229,7 +228,7 @@ class test_logger(unittest.TestCase):
             self.assertRegex(rl.sink.logs[len(rl.sink.logs) - 1][1], "log/test\.py.*line \d+")
 
 
-class test_default(unittest.TestCase):
+class DefaultTest(unittest.TestCase):
     def setUp(self):
         self.backup_default = log.default_logger
 
@@ -275,7 +274,7 @@ class test_default(unittest.TestCase):
         self.assertIn("warn", stderr)
 
 
-class test_stack_trace(unittest.TestCase):
+class StackTraceTest(unittest.TestCase):
     def test_stack_trace(self):
         try:
             raise BaseException("blah")
@@ -287,9 +286,9 @@ class test_stack_trace(unittest.TestCase):
             self.assertFalse(s.endswith("\n"))
 
     def test_stack_trace_logger(self):
-        sink = log.ram_sink()
+        sink = log.RamSink()
         try:
-            with log.stack_trace_logger(log_func=log.logger(sink).err):
+            with log.StackTraceLogger(log_func=log.Logger(sink).err):
                 raise Exception("blah")
         except Exception:
             pass

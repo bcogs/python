@@ -3,7 +3,7 @@ import requests.adapters
 import time
 
 
-class _retrying_http_adapter(requests.adapters.HTTPAdapter):
+class _RetryingAdapter(requests.adapters.HTTPAdapter):
     def __init__(self, max_retries: int = 0, backoff0_seconds: float = 0.5, logger=None, sleep=time.sleep):
         super().__init__()
         self.max_retries, self.backoff0_seconds, self._logger, self.sleep = max_retries, backoff0_seconds, logger, sleep
@@ -28,7 +28,7 @@ class _retrying_http_adapter(requests.adapters.HTTPAdapter):
             backoff_seconds *= 2
 
 
-class response(requests.Response):
+class Response(requests.Response):
     def raise_for_status(self):
         try:
             super().raise_for_status()
@@ -41,17 +41,18 @@ class response(requests.Response):
         )
 
 
-class session(requests.Session):
+class Session(requests.Session):
+
     def request(self, *args, **kwargs):
         resp = super().request(*args, **kwargs)
-        resp.__class__ = response
+        resp.__class__ = Response
         return resp
 
 
 def new_session(max_retries: int = 0, backoff0_seconds: float = 0.5, logger=None, sleep=time.sleep) -> requests.Session:
     "create a new session that retries faileds requests up to max_retries times with exponential backoff starting at backoff0_seconds"
-    sess = session()
-    adapter = _retrying_http_adapter(
+    sess = Session()
+    adapter = _RetryingAdapter(
         max_retries=max_retries, backoff0_seconds=backoff0_seconds, logger=logger, sleep=sleep
     )
     sess.mount("http://", adapter)

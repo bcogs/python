@@ -11,7 +11,7 @@ def open_or_create(file_path):
     return os.fdopen(os.open(file_path, os.O_RDWR | os.O_CREAT, 0o666), "r+b")
 
 
-class _zstd_stream_runner(object):
+class _ZstdStreamRunner(object):
     "base class enabling its children to run and use the external zstd_stream executable"
 
     def __init__(self, command):
@@ -43,14 +43,14 @@ class _zstd_stream_runner(object):
         self._proc.wait()
 
 
-class zstd_compressor(object):
+class ZstdCompressor(object):
     "compressor for series of bytes() in zstd format that never resets the compression state"
 
     def __init__(self):
         "constructor returning a context manager"
         path = os.environ.get("RCARCH_ZSTD_STREAM")
         if path:
-            self._runner = _zstd_stream_runner((path,))
+            self._runner = _ZstdStreamRunner((path,))
         else:
             import zstandard
 
@@ -80,14 +80,14 @@ class zstd_compressor(object):
         self._runner.stop() if hasattr(self, "_runner") else self._writer.close()
 
 
-class zstd_decompressor(object):
-    "decompressor for series of byte()s written by zstd_compressor"
+class ZstdDecompressor(object):
+    "decompressor for series of byte()s written by ZstdCompressor"
 
     def __init__(self):
         "constructor returning a context manager"
         path = os.environ.get("RCARCH_ZSTD_STREAM")
         if path:
-            self._runner = _zstd_stream_runner((path, "--decompress"))
+            self._runner = _ZstdStreamRunner((path, "--decompress"))
         else:
             from zstandard import ZstdDecompressor
 
@@ -137,8 +137,8 @@ def flush_file(file):
     os.fsync(file.fileno())
 
 
-class _chunk_handler(object):
-    "base class for chunker and unchunker"
+class _ChunkHandler(object):
+    "base class for Chunker and Unchunker"
 
     def __init__(self, file, meta_len, first_size_bits):
         self._meta_len, self._file = meta_len, file
@@ -155,11 +155,11 @@ class _chunk_handler(object):
         return (self._size_bits + 7) // 8
 
 
-class corrupt_archive(Exception):
+class CorruptArchive(Exception):
     pass
 
 
-class chunker(_chunk_handler):
+class Chunker(_ChunkHandler):
     """
     Append-only writer for outer file format.
 
@@ -183,7 +183,7 @@ class chunker(_chunk_handler):
 
     def __init__(self, file, meta_len, first_size_bits):
         if not file.seekable():
-            raise ValueError("chunker requires a seekable file")
+            raise ValueError("Chunker requires a seekable file")
         super().__init__(file, meta_len, first_size_bits)
         self.meta = None
         self._offset = 0
@@ -201,7 +201,7 @@ class chunker(_chunk_handler):
             size = int.from_bytes(d[:size_len], "big")  # size of the chunk, including header
             if size < len(d):
                 if size:
-                    raise corrupt_archive("invalid chunk size " + str(size))
+                    raise CorruptArchive("invalid chunk size " + str(size))
                 # the last append didn't fully complete
             self._offset = self._file.seek(size - len(d), os.SEEK_CUR)
             if size < self._max_len():  # it's the last chunk
@@ -258,9 +258,9 @@ class chunker(_chunk_handler):
         return size.to_bytes(self._size_len(), "big") + meta
 
 
-class unchunker(_chunk_handler):
+class Unchunker(_ChunkHandler):
     """
-    Sequential reader for the outer file format written by the chunker class.
+    Sequential reader for the outer file format written by the Chunker class.
 
     Attributes (mustn't be accessed before the end of the data is reached!):
         meta (bytes)|None: The latest read metadata.
@@ -294,7 +294,7 @@ class unchunker(_chunk_handler):
             n = min(size, self._remaining)
             b = _read(self._file, n)
             if not b:
-                raise corrupt_archive("unexpected EOF while reading chunk payload")
+                raise CorruptArchive("unexpected EOF while reading chunk payload")
             out.extend(b)
             size -= len(b)
             self._remaining -= len(b)
@@ -305,7 +305,6 @@ class unchunker(_chunk_handler):
         n = size_len + self._meta_len  # size of the header
         d = _read(self._file, n)
         if len(d) < n:  # eof or incomplete header
-            # writer has if not d: return
             self.trailing_garbage = bool(d)
             return False
         size = int.from_bytes(d[:size_len], "big")  # size of the chunk, including header
@@ -313,7 +312,7 @@ class unchunker(_chunk_handler):
             if not size:  # last chunk wasn't fully written or is empty
                 self.trailing_garbage = True
                 return False
-            raise corrupt_archive("invalid chunk size " + str(size))
+            raise CorruptArchive("invalid chunk size " + str(size))
         self._last = size < self._max_len()
         self.meta, self._remaining = d[size_len:], size - len(d)
         self._size_bits *= 2
@@ -353,12 +352,12 @@ def _new_hash():
     return hashlib.blake2s(digest_size=_HASH_LEN)
 
 
-class writer(object):
+class Writer(object):
     "append functionality for rca files"
 
     def __init__(self, file):
         "constructor returning a context manager"
-        self._chunker, self._hash = chunker(file, _HASH_LEN, _FIRST_BITS), _new_hash()
+        self._chunker, self._hash = Chunker(file, _HASH_LEN, _FIRST_BITS), _new_hash()
 
     def __enter__(self):
         return self
@@ -382,11 +381,11 @@ class writer(object):
           flush: a function that receives the file in argument and flushes it to disk (the default calls file.flush() and os.fsync(file.fileno()), or None for no flushing
 
         Raises:
-          corrupt_archive in certain cases of file corruption
+          CorruptArchive in certain cases of file corruption
         """
         prepend = b""
         if not hasattr(self, "_compressor"):
-            self._compressor = zstd_compressor()
+            self._compressor = ZstdCompressor()
             if self._chunker.meta:  # the file already contains data
                 prepend = self._make_control_varint(_RESET, len(self._chunker.meta)) + self._chunker.meta
                 self._hash.update(prepend)
@@ -413,12 +412,12 @@ class writer(object):
         return bytes(buf)
 
 
-class reader(object):
+class Reader(object):
     "iterator (and context manager) that reads an rca file"
 
     def __init__(self, file):  # file should be open in "rb" mode
         "constructor returning a context manager"
-        self._unchunker = unchunker(file, _HASH_LEN, _FIRST_BITS)
+        self._unchunker = Unchunker(file, _HASH_LEN, _FIRST_BITS)
 
     def __iter__(self):
         "yield a (blob_name: str, blob_content: bytes) pair"
@@ -441,7 +440,7 @@ class reader(object):
             while i & 0x80:
                 d = self._unchunker.read(1)
                 if len(d) < 1:
-                    raise corrupt_archive("unexpected EOF while reading varint")
+                    raise CorruptArchive("unexpected EOF while reading varint")
                 self._hash.update(d)
                 i = d[0]
                 n |= (i & 0x7F) << shift
@@ -464,7 +463,7 @@ class reader(object):
 
     def _handle_legitimate_eof(self):
         if self._unchunker.meta and self._unchunker.meta != self._hash.digest():
-            raise corrupt_archive("final checksum mismatch")
+            raise CorruptArchive("final checksum mismatch")
         self.trailing_garbage = self._unchunker.trailing_garbage
 
     def _process_control_block(self, block_type: int, n: int, digest):
@@ -474,12 +473,12 @@ class reader(object):
             if len(payload) >= payload_size:
                 self._hash.update(payload)
             else:
-                raise corrupt_archive("unexpected EOF while reading control block payload")
+                raise CorruptArchive("unexpected EOF while reading control block payload")
         if block_type == _RESET:
             if len(payload) < _HASH_LEN:
-                raise corrupt_archive("reset block payload is shorter than hash len")
+                raise CorruptArchive("reset block payload is shorter than hash len")
             if payload[:_HASH_LEN] != digest:
-                raise corrupt_archive(
+                raise CorruptArchive(
                     "checksum mismatch"
                     if len(payload) >= _HASH_LEN
                     else "unexpected EOF while reading reset block checksum"
@@ -488,16 +487,16 @@ class reader(object):
     def _read_blob(self, size: int) -> tuple[str, bytes]:
         compressed = self._unchunker.read(size)
         if len(compressed) < size:
-            raise corrupt_archive("unexpected EOF when reading compressed blob")
+            raise CorruptArchive("unexpected EOF when reading compressed blob")
         self._hash.update(compressed)
         decompressed = self._decompressor.decompress(compressed)
         try:
             name, blob = decompressed.split(b"\x00", 1)
         except ValueError:
-            raise corrupt_archive("no \\x00 found in blob name")
+            raise CorruptArchive("no \\x00 found in blob name")
         return name.decode("utf-8"), blob
 
     def _reset(self):
         if hasattr(self, "_decompressor"):
             self._decompressor.close()
-        self._decompressor, self._hash = zstd_decompressor(), _new_hash()
+        self._decompressor, self._hash = ZstdDecompressor(), _new_hash()

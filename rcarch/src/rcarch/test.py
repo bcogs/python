@@ -10,7 +10,7 @@ except ModuleNotFoundError:
     import __init__ as rcarch
 
 
-class bytesIO(io.BytesIO):
+class BytesIO(io.BytesIO):
     def __init__(self):
         self.os_fsyncs = 0
 
@@ -19,18 +19,18 @@ def flush_bytesio(bytesio):
     bytesio.os_fsyncs += 1
 
 
-class chunk_layer_test(unittest.TestCase):
+class ChunkLayerTest(unittest.TestCase):
     _DUMMY_META = b"test1meta"
     _DUMMY_META2 = b"meta2test"
     _META_LEN = len(_DUMMY_META)
 
     def _write_chunks(self, parts, first_size_bits, file=None, meta_len=_META_LEN):
         if not file:
-            file = bytesIO()
+            file = BytesIO()
         else:
             file.seek(0)
         n = file.os_fsyncs
-        c = rcarch.chunker(file, meta_len, first_size_bits)
+        c = rcarch.Chunker(file, meta_len, first_size_bits)
         for data, meta in parts:
             c.append(data, meta, flush=flush_bytesio)
             n += 2
@@ -43,7 +43,7 @@ class chunk_layer_test(unittest.TestCase):
 
     def _read_all(self, f, first_size_bits, read_size=10, meta_len=_META_LEN):
         f.seek(0)
-        u = rcarch.unchunker(f, meta_len, first_size_bits)
+        u = rcarch.Unchunker(f, meta_len, first_size_bits)
         result = bytearray()
         has_trailing_garbage_attr = hasattr(u, "trailing_garbage")
         while True:
@@ -73,19 +73,19 @@ class chunk_layer_test(unittest.TestCase):
 
     def test_bad_arguments(self):
         with self.assertRaises(ValueError):
-            rcarch.unchunker(bytesIO(), 8, 4)
+            rcarch.Unchunker(BytesIO(), 8, 4)
         with self.assertRaises(ValueError):
-            rcarch.chunker(bytesIO(), 8, 4)
+            rcarch.Chunker(BytesIO(), 8, 4)
 
-        class NonSeekable(bytesIO):
+        class NonSeekable(BytesIO):
             def seekable(self):
                 return False
 
         with self.assertRaises(ValueError):
-            rcarch.chunker(NonSeekable(), 8, 24)
+            rcarch.Chunker(NonSeekable(), 8, 24)
 
     def test_empty_file(self):
-        self.assertEqual((b"", None, False), self._read_all(bytesIO(), 24))
+        self.assertEqual((b"", None, False), self._read_all(BytesIO(), 24))
         f = self._write_chunks([], 8)
         f.seek(0, os.SEEK_END)
         self.assertEqual(0, f.tell())
@@ -138,7 +138,7 @@ class chunk_layer_test(unittest.TestCase):
             self.assertEqual(header_offs, f.tell())
             self.assertEqual(0, header_offs % (1 << 4))
             f.seek(0)
-            rcarch.chunker(f, self._META_LEN, 5).append(b"B", self._DUMMY_META2, flush=flush_bytesio)
+            rcarch.Chunker(f, self._META_LEN, 5).append(b"B", self._DUMMY_META2, flush=flush_bytesio)
             db = d + b"B"
             self.assertEqual((db, self._DUMMY_META2, False), self._read_all(f, 5))
             self.assertGreater(f.tell(), header_offs + 1)  # verify it created a new chunk
@@ -148,7 +148,7 @@ class chunk_layer_test(unittest.TestCase):
             assert f.write(b"\x00" * size_len) == size_len
             self.assertEqual((d, self._DUMMY_META, True), self._read_all(f, 5))
             f.seek(0)
-            rcarch.chunker(f, self._META_LEN, 5).append(b"B", self._DUMMY_META2, flush=flush_bytesio)
+            rcarch.Chunker(f, self._META_LEN, 5).append(b"B", self._DUMMY_META2, flush=flush_bytesio)
             self.assertEqual((db, self._DUMMY_META2, False), self._read_all(f, 5))
             # set the header size to 0 again and truncate, to simulate an append interrupted before the payload is written
             f.seek(header_offs)
@@ -156,7 +156,7 @@ class chunk_layer_test(unittest.TestCase):
             f.truncate(header_offs + size_len + len(self._DUMMY_META))
             self.assertEqual((d, self._DUMMY_META, True), self._read_all(f, 5))
             f.seek(0)
-            rcarch.chunker(f, self._META_LEN, 5).append(b"B", self._DUMMY_META2, flush=flush_bytesio)
+            rcarch.Chunker(f, self._META_LEN, 5).append(b"B", self._DUMMY_META2, flush=flush_bytesio)
             self.assertEqual((db, self._DUMMY_META2, False), self._read_all(f, 5))
             # check what happens if a header could be only partially appended
             size = f.tell()
@@ -164,19 +164,19 @@ class chunk_layer_test(unittest.TestCase):
                 f.truncate(size - n)
                 self.assertEqual((d, self._DUMMY_META, True), self._read_all(f, 5))
                 f.seek(0)
-                rcarch.chunker(f, self._META_LEN, 5).append(b"B", self._DUMMY_META2, flush=flush_bytesio)
+                rcarch.Chunker(f, self._META_LEN, 5).append(b"B", self._DUMMY_META2, flush=flush_bytesio)
                 self.assertEqual((db, self._DUMMY_META2, False), self._read_all(f, 5))
                 self.assertEqual(size, f.tell())
         if single_write:
             self.test_interrupted_appends(single_write=False)
 
     def test_resume_appends(self):
-        expected, n, f = b"", 5, bytesIO()
+        expected, n, f = b"", 5, BytesIO()
         for i in range(10):
             d = bytes([b"abcdefghijklmnopqrstuvwxyz"[i]]) * n
             meta = self._DUMMY_META if i % 2 else self._DUMMY_META2
             f.seek(0)
-            c = rcarch.chunker(f, self._META_LEN, 5)
+            c = rcarch.Chunker(f, self._META_LEN, 5)
             c.append(d, meta, flush=flush_bytesio)
             self.assertEqual(meta, c.meta)
             expected += d
@@ -203,7 +203,7 @@ class chunk_layer_test(unittest.TestCase):
         self.assertEqual((b"hello", self._DUMMY_META, True), self._read_all(f, 7))
 
     def test_zero_length_first_header(self):
-        f = bytesIO()
+        f = BytesIO()
         # simulate interrupted append by writing a header advertising 0-length
         header = (0).to_bytes(1, "big") + self._DUMMY_META
         rcarch._write(f, header)
@@ -227,12 +227,12 @@ class chunk_layer_test(unittest.TestCase):
 
     def test_corrupt_header_size_too_small(self):
         for i in range(1, 3 + self._META_LEN):
-            f = bytesIO()
+            f = BytesIO()
             bad_size = (i).to_bytes(3, "big")
             f.write(bad_size + self._DUMMY_META)
             f.seek(0)
-            with self.assertRaises(rcarch.corrupt_archive) as cm:
-                rcarch.unchunker(f, self._META_LEN, 24).read(1)
+            with self.assertRaises(rcarch.CorruptArchive) as cm:
+                rcarch.Unchunker(f, self._META_LEN, 24).read(1)
             self.assertIn("size " + str(i), str(cm.exception))
 
     def test_append_spanning_two_chunks_with_reasonable_first_size(self):
@@ -303,7 +303,7 @@ class chunk_layer_test(unittest.TestCase):
             self.assertEqual((d, self._DUMMY_META, False), self._read_all(f, 5))
 
 
-class test_with_temp_file(unittest.TestCase):
+class TestCaseWithTempFile(unittest.TestCase):
     def setUp(self):
         with tempfile.NamedTemporaryFile(delete=False) as tf:
             self.path = tf.name
@@ -312,16 +312,16 @@ class test_with_temp_file(unittest.TestCase):
         os.remove(self.path)
 
 
-class rcarch_test(test_with_temp_file):
+class RcarchTest(TestCaseWithTempFile):
     def _read_all(self):
         with open(self.path, "rb") as f:
-            with rcarch.reader(f) as r:
+            with rcarch.Reader(f) as r:
                 result = list(r)
                 return result, r.trailing_garbage
 
     def _append(self, blobs, extra_bytes=b""):
         with open(self.path, "r+b") as f:
-            with rcarch.writer(f) as w:
+            with rcarch.Writer(f) as w:
                 for name, data in blobs:
                     w.append(name, data)
         if extra_bytes:
@@ -338,7 +338,7 @@ class rcarch_test(test_with_temp_file):
         with open(self.path, "rb") as f:
             self.assertEqual(([], False), self._read_all())
         with open(self.path, "r+b") as f:
-            with rcarch.writer(f) as w:
+            with rcarch.Writer(f) as w:
                 w.append("name", b"foo")
         self.assertEqual(([("name", b"foo")], False), self._read_all())
 
@@ -350,7 +350,7 @@ class rcarch_test(test_with_temp_file):
 
     def test_no_data_with_junk(self):
         with open(self.path, "r+b") as f:
-            rcarch.chunker(f, rcarch._HASH_LEN, rcarch._FIRST_BITS).append(b"", rcarch._new_hash().digest())
+            rcarch.Chunker(f, rcarch._HASH_LEN, rcarch._FIRST_BITS).append(b"", rcarch._new_hash().digest())
         self.assertEqual(
             ([], True),
             self._append_and_readback(
@@ -382,7 +382,7 @@ class rcarch_test(test_with_temp_file):
         blobs = [("first", b"1"), ("second", b"2"), ("third", b"3")]
         for blob in blobs:
             with open(self.path, "r+b") as f:
-                with rcarch.writer(f) as w:
+                with rcarch.Writer(f) as w:
                     w.append(*blob)
         self.assertEqual((blobs, False), self._read_all())
 
@@ -432,11 +432,11 @@ class rcarch_test(test_with_temp_file):
                     varint = f.read(len(expected))
                     self.assertEqual(bytes(expected), varint)
                     f.write(b"Z" * rcarch._HASH_LEN)
-                with self.assertRaises(rcarch.corrupt_archive) as cm:
+                with self.assertRaises(rcarch.CorruptArchive) as cm:
                     self._read_all()
                 self.assertIn("checksum", str(cm.exception))
                 self._append([("last", b"Z")])
-                with self.assertRaises(rcarch.corrupt_archive) as cm:
+                with self.assertRaises(rcarch.CorruptArchive) as cm:
                     self._read_all()
                 self.assertIn("checksum", str(cm.exception))
 
@@ -447,12 +447,12 @@ class rcarch_test(test_with_temp_file):
                 self._append_and_readback([(str(reset), str(0x41 + reset).encode("utf-8"))])
             self._append_and_readback([("before_last", b"X")])
             with open(self.path, "r+b") as f:
-                rcarch.chunker(f, rcarch._HASH_LEN, rcarch._FIRST_BITS).append(b"", b"Z" * rcarch._HASH_LEN)
-            with self.assertRaises(rcarch.corrupt_archive) as cm:
+                rcarch.Chunker(f, rcarch._HASH_LEN, rcarch._FIRST_BITS).append(b"", b"Z" * rcarch._HASH_LEN)
+            with self.assertRaises(rcarch.CorruptArchive) as cm:
                 self._read_all()
             self.assertIn("checksum", str(cm.exception))
             self._append([("last", b"Y")])
-            with self.assertRaises(rcarch.corrupt_archive) as cm:
+            with self.assertRaises(rcarch.CorruptArchive) as cm:
                 self._read_all()
             self.assertIn("checksum", str(cm.exception))
 
