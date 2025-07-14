@@ -18,7 +18,7 @@ LEVELS = ("debug", "info", "tell", "warning", "error", "fatal")
 def setup_default(*args, **kwargs):
     """Initialize the default logger, used for the module top level logging functions."""
     global default_logger
-    default_logger = logger(file_sink(*args, **kwargs))
+    default_logger = Logger(FileSink(*args, **kwargs))
     return default_logger
 
 
@@ -28,7 +28,7 @@ def setup_default_as_ram_sink():
     Meant as a convenience function for unit tests that want to check the content of the logs.
     Can be called multiple times, resetting the ram sink each time."""
     global default_logger
-    default_logger = logger(ram_sink())
+    default_logger = Logger(RamSink())
     return default_logger
 
 
@@ -72,7 +72,7 @@ def fatal(*args, **kwargs):
     default_logger.fatal(*args, **kwargs)
 
 
-class logger(object):
+class Logger(object):
     """Main logging class."""
 
     def __init__(self, sink):
@@ -129,11 +129,11 @@ def stack_trace(e: BaseException) -> str:
     return "".join(traceback.format_exception(type(e), e, e.__traceback__)).rstrip()
 
 
-class stack_trace_logger(object):
+class StackTraceLogger(object):
     """Context manager that writes the stack trace to logs if there's an exception.
 
     Example use:
-      with log.stack_trace_logger(log_func=log.err): do_something()
+      with log.StackTraceLogger(log_func=log.err): do_something()
     """
 
     def __init__(self, log_func=err):
@@ -170,7 +170,7 @@ def make(level: int, fmt: str, *args, **kwargs) -> (int, str):
     return level, msg + "\n at " + caller_stack
 
 
-class file_sink(object):
+class FileSink(object):
     """Default sink that logs to files and stderr.
 
     It's also a context manager, it flushes and closes any open file when exiting.
@@ -222,7 +222,7 @@ class file_sink(object):
             self.file.flush()
 
 
-class ram_sink(object):
+class RamSink(object):
     """In memory sink, useful for unit tests that want to check log content."""
 
     def __init__(self):
@@ -232,4 +232,4 @@ class ram_sink(object):
         self.logs.append(make(level, fmt, *args, **kwargs))
 
 
-default_logger = logger(file_sink())
+default_logger = Logger(FileSink())

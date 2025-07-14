@@ -4,7 +4,7 @@ import signal
 import tempfile
 
 
-class signals_masker(object):
+class SignalsMasker(object):
     """Context manager that masks signals."""
 
     MASKABLE_TERMINATING_SIGNALS = frozenset(
@@ -23,7 +23,7 @@ class signals_masker(object):
         signal.pthread_sigmask(signal.SIG_SETMASK, self._before)
 
 
-class context(object):
+class Context(object):
     """Context that facilitates resuming a program from where it left after it exits.
 
     Works if it exits due to uncaught exceptions, SIGINT, SIGPIPE, or sys.exit.
@@ -40,15 +40,15 @@ class context(object):
 
         def step1(...): ...
 
-      with presume.context(my_cool_class(), state_filename='state_file') as p:
+      with presume.Context(my_cool_class(), state_filename='state_file') as p:
         # p.state is either:
         #   - the unpickled content of state_file if it exists
         #   - my_cool_class() otherwise
         p.state.main()
-        # the above will run step0() then step1() unless those steps already succeeded and were persisted, which happens when the context exits
+        # the above will run step0() then step1() unless those steps already succeeded and were persisted, which happens when the Context exits
     """
 
-    def __init__(self, state, state_filename=None, mask_signals=signals_masker.MASKABLE_TERMINATING_SIGNALS):
+    def __init__(self, state, state_filename=None, mask_signals=SignalsMasker.MASKABLE_TERMINATING_SIGNALS):
         """Ctor.
 
         Parameters:
@@ -75,19 +75,19 @@ class context(object):
             return
         dir_name = os.path.dirname(self.state_filename)
         mask = self.mask_signals if self.mask_signals else {}
-        with signals_masker(signals_to_mask=mask):
+        with SignalsMasker(signals_to_mask=mask):
             with tempfile.NamedTemporaryFile("wb", dir=dir_name, delete=False) as tmp:
                 pickle.dump(self.state, tmp)
                 tmp_path = tmp.name
             os.replace(tmp_path, self.state_filename)
 
 
-class iterator(object):
+class Iterator(object):
     """Iterator that can be pickled and thus persisted.
 
     Example use:
-      with presume.context(...) as p:
-        for n in p.state.__dict__.setdefault('it', presume.iterator([1, 2, 3])):
+      with presume.Context(...) as p:
+        for n in p.state.__dict__.setdefault('it', presume.Iterator([1, 2, 3])):
           do_something (n)
     """
 

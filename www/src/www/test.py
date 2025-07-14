@@ -14,7 +14,7 @@ except ModuleNotFoundError:
 warnings.simplefilter("ignore", urllib3.exceptions.NotOpenSSLWarning)
 
 
-class http_handler(http.server.BaseHTTPRequestHandler):
+class HTTPHandler(http.server.BaseHTTPRequestHandler):
     failures = 0
     failures_id = ""
 
@@ -28,13 +28,13 @@ class http_handler(http.server.BaseHTTPRequestHandler):
         params = urllib.parse.parse_qs(url.query)
         code = self.response_code
         if "failures" in params:
-            if http_handler.failures_id != params["failures_id"][0]:
-                http_handler.failures, http_handler.failures_id = 0, params["failures_id"][0]
-            if http_handler.failures >= int(params["failures"][0]):
+            if HTTPHandler.failures_id != params["failures_id"][0]:
+                HTTPHandler.failures, HTTPHandler.failures_id = 0, params["failures_id"][0]
+            if HTTPHandler.failures >= int(params["failures"][0]):
                 code = 200
             else:
                 code = 500
-                http_handler.failures += 1
+                HTTPHandler.failures += 1
         self.send_response(code, "ok" if code // 100 == 2 else "oh noooo")
         self.end_headers()
         self.wfile.write(b"a cool page that works" if code // 100 == 2 else b"kaputt")
@@ -43,9 +43,9 @@ class http_handler(http.server.BaseHTTPRequestHandler):
         pass
 
 
-class test_new_session(unittest.TestCase):
+class NewSessionTest(unittest.TestCase):
     def setUp(self):
-        self.server = http.server.HTTPServer(("localhost", 0), http_handler)
+        self.server = http.server.HTTPServer(("localhost", 0), HTTPHandler)
         self.url = f"http://localhost:{self.server.server_port}"
         self.server_thread = threading.Thread(target=self.server.serve_forever)
         self.server_thread.start()
