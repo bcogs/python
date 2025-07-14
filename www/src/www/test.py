@@ -49,19 +49,19 @@ class test_new_session(unittest.TestCase):
         self.url = f"http://localhost:{self.server.server_port}"
         self.server_thread = threading.Thread(target=self.server.serve_forever)
         self.server_thread.start()
-        self._old_sleep = www._retrying_http_adapter._sleep
-        www._retrying_http_adapter._sleep = lambda seconds: self.sleeps.append(seconds)
         self.sleeps = []
 
     def tearDown(self):
         self.server.shutdown()
         self.server.server_close()
         self.server_thread.join()
-        www._retrying_http_adapter._sleep = self._old_sleep
+
+    def sleep(self, seconds):
+        self.sleeps.append(seconds)
 
     def test_max_retries(self):
         RETRIES = 3
-        sess = www.new_session(max_retries=RETRIES)
+        sess = www.new_session(max_retries=RETRIES, sleep=self.sleep)
         for failures in range(2 * RETRIES + 1):
             self.sleeps = []
             resp = sess.get(self.url + "?failures=%d&failures_id=test_max_retries%d" % (failures, failures))
@@ -75,7 +75,7 @@ class test_new_session(unittest.TestCase):
             self.assertEqual([0.5 * 2**i for i in range(min(failures, 3))], self.sleeps)
 
     def test_error_details(self):
-        sess = www.new_session(max_retries=1)
+        sess = www.new_session(max_retries=1, sleep=self.sleep)
         resp = sess.get(self.url + "?failures=100&failures_id=test_error_details")
         try:
             resp.raise_for_status()
