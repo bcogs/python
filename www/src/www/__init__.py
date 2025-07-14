@@ -42,7 +42,6 @@ class Response(requests.Response):
 
 
 class Session(requests.Session):
-
     def request(self, *args, **kwargs):
         resp = super().request(*args, **kwargs)
         resp.__class__ = Response
@@ -52,9 +51,7 @@ class Session(requests.Session):
 def new_session(max_retries: int = 0, backoff0_seconds: float = 0.5, logger=None, sleep=time.sleep) -> requests.Session:
     "create a new session that retries faileds requests up to max_retries times with exponential backoff starting at backoff0_seconds"
     sess = Session()
-    adapter = _RetryingAdapter(
-        max_retries=max_retries, backoff0_seconds=backoff0_seconds, logger=logger, sleep=sleep
-    )
+    adapter = _RetryingAdapter(max_retries=max_retries, backoff0_seconds=backoff0_seconds, logger=logger, sleep=sleep)
     sess.mount("http://", adapter)
     sess.mount("https://", adapter)
     return sess
