@@ -7,7 +7,7 @@ The module also has a number of whistles and bells such as parallel execution of
 Example use:
     scheduler = psched.Scheduler()
     initial_tasks = [
-        psched.Task(do_sth, args=("arg1", "arg2", kwargs={"kwarg1": 1})),
+        psched.Task(do_sth, args=("arg1", "arg2"), kwargs={"kwarg1": 1}),
         psched.Task(do_sth_else, max_retry_delay_secs=4.5, on_fail="oh, noes!"),
     ]
     scheduler.run(initial_tasks, "/path/to/the/journal", parallelism=3, logger=log.default_logger)
@@ -106,8 +106,8 @@ class Task(object):
     A Task can be retried later if it fails, if max_retry_delay_secs is strictly
     positive.  The retry delay starts at retry_delay_secs and doubles at each
     attempt, until it exceeds max_retry_delay_secs, at which point the Task
-    fails as described above, causing the Exception to propagate or to the Task
-    to output its on_fail value.
+    fails as described above, causing the Exception to propagate or the Task to
+    output its on_fail value.
     """
 
     what: callable
@@ -143,8 +143,10 @@ class Out(object):
     def __init__(self, result=None, tasks=()):
         """Args:
 
-        result: optional result, that will be passed as a kwarg to dependent tasks
-        tasks: an iterable of new Task instances to schedule; if they have dependencies, those will be recursively scheduled too"""
+        result: Optional result, that will be passed as a kwarg to dependent tasks.  Must be picklable.
+        tasks:
+            An iterable of new Task instances to schedule.
+            If they have dependencies, those will be recursively scheduled too."""
         self.result, self.tasks = result, tasks
 
 
@@ -219,14 +221,14 @@ class _PersistableTask(object):
 
 @dataclasses.dataclass
 class Live(object):
-    """Non-persisted info retrieved from the Scheduler live state to tasks.
+    """Non-persisted info retrieved from the Scheduler live state and passed in argument to tasks.
 
     When creating a Task, if some of the args or kwargs are instances of Live,
     they'll be replaced when executing the Task by a value retrieved from
     the Scheduler's live state.
 
-    If the Live instance key is None, it will be replaced by the entire live
-    state.  Otherwise, it'll be replaced by one of:
+    If the Live instance key is None, the Live argument will be replaced by the
+    entire live state.  Otherwise, it'll be replaced by one of:
         - live_state[key] if the Scheduler live state is a dict
         - or getattr(live_state, key).
     """
