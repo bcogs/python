@@ -1,0 +1,17 @@
+[project]
+name = "psched"
+description = "library that executes tasks and can resume from where it left in case of failure"
+version = "0.9.0"
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.ruff]
+line-length = 120
+# 701: multiple statements on one line, e.g. except: something()
+lint.extend-ignore = ["E701"]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+packages = ["psched"]
