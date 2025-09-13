@@ -493,12 +493,12 @@ class Scheduler(object):
             return ptask.process_failure(e)
         delay = ptask.retry_delay_secs
         if delay <= max_delay:
-            self.logger.info("%s failed (%s), retrying in %f seconds" % (ptask, e, delay))
+            self.logger.info("%s failed (%s), retrying in %f seconds", ptask, e, delay)
             ptask.retry_delay_secs *= 2.0
             ptask.when = self.get_time() + delay
             queue.push(ptask)
             return None
-        self.logger.error("%s failed and won't be retried - %s" % (ptask, e))
+        self.logger.error("%s failed and won't be retried - %s", ptask, e)
         return ptask.process_failure(e)
 
     def _init_queue(self, default_initial_tasks, journal: Journal, cs: CompactionStrategy):
@@ -591,7 +591,7 @@ class Scheduler(object):
             return next(concurrent.futures.as_completed(futures, timeout=timeout))
         except StopIteration:
             if timeout > 0.0:
-                self.logger.info("sleeping %f seconds" % timeout)
+                self.logger.info("sleeping %f seconds", timeout)
                 self.sleep(timeout)
         except TimeoutError:
             return None
