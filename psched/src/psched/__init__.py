@@ -151,6 +151,12 @@ class Out(object):
 
 
 class _PersistableTask(object):
+    @classmethod
+    def init_from_dict(cls, d: dict):
+        pt = cls.__new__(cls)
+        pt.__dict__.update(d)
+        return pt
+
     def __init__(self, task: Task, sequence_number: int, when: float = None):
         # DON'T SET MEMBERS THAT HAVE THEIR DEFAULT VALUE
         # the class should be kept small, because it's written to disk
@@ -259,14 +265,15 @@ class _TasksQueue(object):
             if not isinstance(record, list):
                 record = [record]
             completed = record[-1]
-            if isinstance(completed, _PersistableTask):
+            if isinstance(completed, dict):
                 completed = None
             else:
                 record = record[:-1]
                 if isinstance(completed, int):  # else it's a pair (seq num, result)
                     completed = (completed, None)
                 del queued[completed[0]]
-            for ptask in record:
+            for ptask_dict in record:
+                ptask = _PersistableTask.init_from_dict(ptask_dict)
                 max_seq_num = max(max_seq_num, ptask.explore(ptasks))
                 queued[ptask.sequence_number] = ptask
             if completed is not None:
@@ -525,7 +532,7 @@ class Scheduler(object):
                 tasks_by_id[id(dependency)][1].set_trigger(kwarg, ptask)
             if not task.dependencies:
                 queue.push(ptask)
-                record.append(ptask)
+                record.append(ptask.__dict__)
         if completed_seq_num is not None:
             if cs and cs.record_garbage(1):
                 return True
@@ -561,7 +568,9 @@ class Scheduler(object):
         for ready_st in ptask.handle_triggers(out.result):
             queue.push(ready_st)
         if self._push(queue, out.tasks, journal, ptask.sequence_number, out, cs):
-            journal.compact(itertools.chain(queue.get_compaction_iterator(), future2pt.values()))
+            journal.compact(
+                ptask.__dict__ for ptask in itertools.chain(queue.get_compaction_iterator(), future2pt.values())
+            )
             cs.record_compaction()
         return True
 

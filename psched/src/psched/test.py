@@ -211,7 +211,7 @@ class JournalStatsWrapper(psched.Journal):
         blobs = blob if isinstance(blob, list) else [blob]
         new_tasks, n = 0, 0
         for b in blobs:
-            if isinstance(b, psched._PersistableTask):
+            if isinstance(b, dict):
                 new_tasks += 1
             else:
                 n += 1
