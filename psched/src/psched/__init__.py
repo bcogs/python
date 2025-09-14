@@ -152,9 +152,23 @@ class Out(object):
 
 class _PersistableTask(object):
     @classmethod
-    def init_from_dict(cls, d: dict):
+    def init_from_pickled_dict(cls, d: dict):
         pt = cls.__new__(cls)
-        pt.__dict__.update(d)
+        pt.__dict__ = {k: v for k, v in d.items() if k not in {"args", "kwargs", "live"}}
+        n, kwargs, live = -1, d.get("kwargs", {}), d.get("live", {})
+        for k, v in live.items():
+            if isinstance(k, str):
+                kwargs[k] = Live(v)
+                continue
+            n = max(n, k)
+        new_args, i, args = [], 0, d.get("args", ())
+        while i < len(args) or len(new_args) < n:
+            if len(new_args) in live:
+                new_args.append(Live(live[len(new_args)]))
+            else:
+                new_args.append(args[i])
+                i += 1
+        pt.args, pt.kwargs = new_args, kwargs
         return pt
 
     def __init__(self, task: Task, sequence_number: int, when: float = None):
@@ -216,6 +230,18 @@ class _PersistableTask(object):
                 ready.append(dependent_ptask)
         return ready
 
+    def prepare_pickling(self) -> dict:
+        d, live = self.__dict__.copy(), {}
+        args = d.get("args", None)
+        if args:
+            d["args"] = tuple(arg for i, arg in enumerate(args) if self._prepare_pickling(i, arg, live))
+        kwargs = d.get("kwargs", None)
+        if kwargs:
+            d["kwargs"] = {k: v for k, v in kwargs.items() if self._prepare_pickling(k, v, live)}
+        if live:
+            d["live"] = live
+        return d
+
     def process_failure(self, e: Exception):
         if "on_fail" in self.__dict__:
             return Out(result=self.on_fail)
@@ -223,6 +249,12 @@ class _PersistableTask(object):
 
     def set_trigger(self, kwarg, dependent_ptask):
         self.__dict__.setdefault("triggers", []).append((kwarg, dependent_ptask))
+
+    def _prepare_pickling(self, key, val, live):
+        if isinstance(val, Live):
+            live[key] = val.key
+            return False
+        return True
 
 
 @dataclasses.dataclass
@@ -273,7 +305,7 @@ class _TasksQueue(object):
                     completed = (completed, None)
                 del queued[completed[0]]
             for ptask_dict in record:
-                ptask = _PersistableTask.init_from_dict(ptask_dict)
+                ptask = _PersistableTask.init_from_pickled_dict(ptask_dict)
                 max_seq_num = max(max_seq_num, ptask.explore(ptasks))
                 queued[ptask.sequence_number] = ptask
             if completed is not None:
@@ -569,7 +601,8 @@ class Scheduler(object):
             queue.push(ready_st)
         if self._push(queue, out.tasks, journal, ptask.sequence_number, out, cs):
             journal.compact(
-                ptask.__dict__ for ptask in itertools.chain(queue.get_compaction_iterator(), future2pt.values())
+                ptask.prepare_pickling()
+                for ptask in itertools.chain(queue.get_compaction_iterator(), future2pt.values())
             )
             cs.record_compaction()
         return True
