@@ -17,10 +17,7 @@ class DirectoryPopulatorTest(unittest.TestCase):
     def setUp(self):
         self.test_dir = tempfile.mkdtemp()
         self.original_cwd = os.getcwd()
-        self.archive, self.target = [
-            os.path.realpath(os.path.join(self.test_dir, d))
-            for d in ("archive", "target")
-        ]
+        self.archive, self.target = [os.path.realpath(os.path.join(self.test_dir, d)) for d in ("archive", "target")]
         os.chdir(self.test_dir)
 
     def tearDown(self):
@@ -41,9 +38,7 @@ class DirectoryPopulatorTest(unittest.TestCase):
         with open(os.path.join(parent, "bar"), "w") as f:
             f.write("test_nominal")
         for i in range(2):
-            with directory_populator.DirectoryPopulator(
-                self.target, tmp_parent=parent, tmp_suffix="zzzzz"
-            ) as p:
+            with directory_populator.DirectoryPopulator(self.target, tmp_parent=parent, tmp_suffix="zzzzz") as p:
                 self.assertRegex(os.getcwd(), ".*zzzzz$")
                 self.assertContent(os.path.join("..", "bar"), "test_nominal")
                 self.create("foo", str(i))
@@ -56,9 +51,7 @@ class DirectoryPopulatorTest(unittest.TestCase):
         for i in range(2):
             raised = False
             try:
-                with directory_populator.DirectoryPopulator(
-                    self.target, self.archive, tmp_parent=self.test_dir
-                ) as p:
+                with directory_populator.DirectoryPopulator(self.target, self.archive, tmp_parent=self.test_dir) as p:
                     self.create("foo", str(i))
                     self.assertFalse(hasattr(p, "committed"))
                     p.commit()
@@ -75,9 +68,7 @@ class DirectoryPopulatorTest(unittest.TestCase):
     def test_exception_prevents_implicit_commit(self):
         raised = False
         try:
-            with directory_populator.DirectoryPopulator(
-                self.target, self.archive, tmp_parent=self.test_dir
-            ) as p:
+            with directory_populator.DirectoryPopulator(self.target, self.archive, tmp_parent=self.test_dir) as p:
                 self.create("foo", "foo")
                 self.assertFalse(hasattr(p, "committed"))
                 raise (ExpectedException("expected exception"))
@@ -102,9 +93,7 @@ class DirectoryPopulatorTest(unittest.TestCase):
                 tmp_parent=self.test_dir,
                 chdir=bool(i),
             ):
-                self.assertContent(
-                    os.path.join(".." if i else ".", "bar"), "test_nochdir"
-                )
+                self.assertContent(os.path.join(".." if i else ".", "bar"), "test_nochdir")
                 self.create("foo" + str(i), str(i))
             self.assertContent("bar", "test_nochdir")
         self.assertContent("foo0", "0")
@@ -112,9 +101,7 @@ class DirectoryPopulatorTest(unittest.TestCase):
 
     def test_relative_target(self):
         for i in range(2):
-            with directory_populator.DirectoryPopulator(
-                "target", tmp_parent=self.test_dir, chdir=bool(i)
-            ):
+            with directory_populator.DirectoryPopulator("target", tmp_parent=self.test_dir, chdir=bool(i)):
                 self.create("foo" + str(i), str(i))
         self.assertContent("foo0", "0")
         self.assertContent(os.path.join("target", "foo1"), "1")

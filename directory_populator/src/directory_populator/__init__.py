@@ -15,15 +15,11 @@ class DirectoryPopulator(object):
     archive: str = ""  # if the target already exists, rename it to this path before renaming the temp dir to the target
     tmp_prefix: str = None  # prefix of the temp dir name, same as tempfile.mkstemp
     tmp_suffix: str = None  # end of the temp dir name, same as tempfile.mkstemp
-    tmp_parent: str = (
-        None  # directory containing the temp dir, same as tempfile.mkstemp's dir
-    )
+    tmp_parent: str = None  # directory containing the temp dir, same as tempfile.mkstemp's dir
     chdir: bool = True  # if True, chdir to the temp dir when entering the context, and chdir back to the original cwd when exiting it; if False, the path of the temporary directory is in the tmp_dir member
 
     def __enter__(self):
-        self.tmp_dir = tempfile.mkdtemp(
-            prefix=self.tmp_prefix, suffix=self.tmp_suffix, dir=self.tmp_parent
-        )
+        self.tmp_dir = tempfile.mkdtemp(prefix=self.tmp_prefix, suffix=self.tmp_suffix, dir=self.tmp_parent)
         if self.chdir:
             self._original_cwd = os.getcwd()
             os.chdir(self.tmp_dir)
@@ -38,9 +34,7 @@ class DirectoryPopulator(object):
 
     def commit(self):
         if self.__dict__.get("committed", False):
-            raise Exception(
-                "repeated attempt to commit DirectoryPopulator(target=%r)" % self.target
-            )
+            raise Exception("repeated attempt to commit DirectoryPopulator(target=%r)" % self.target)
         to_del = None
         try:
             if self.archive:
