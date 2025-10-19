@@ -9,7 +9,7 @@ import zoneinfo
 
 # shorthand strftime constants
 DATE = "%Y-%m-%d"
-TIME = "$H:%M:%S"
+TIME = "%H:%M:%S"
 DATETIME = DATE + "-" + TIME
 
 
