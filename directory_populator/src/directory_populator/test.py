@@ -1,7 +1,10 @@
+import datetime
 import os
 import shutil
 import tempfile
+import time
 import unittest
+import zoneinfo
 
 try:
     import directory_populator
@@ -116,3 +119,28 @@ class DirectoryPopulatorTest(unittest.TestCase):
         self.assertContent("foo0", "0")
         self.assertFalse(os.path.exists(os.path.join("target", "foo1")))
         self.assertContent(os.path.join("target", "foo2"), "2")
+
+    def test_strftime(self):
+        for tz in ("UTC", "local", "America/Los_Angeles", "Europe/Paris"):
+            if tz != "local":
+                now = datetime.datetime.now(zoneinfo.ZoneInfo(tz)).timetuple()
+            else:
+                now = time.localtime()
+            with directory_populator.DirectoryPopulator(
+                "target", tmp_tz=tz, tmp_prefix="%H%M-", tmp_suffix="-%H%M"
+            ) as p:
+                self.create("foo", tz)
+                self.assertTrue(os.getcwd().endswith(p.tmp_dir))
+            self.assertContent(os.path.join("target", "foo"), tz)
+            t0 = now.tm_hour * 60 + now.tm_min
+            for s in (p.tmp_dir[:4], p.tmp_dir[-4:]):
+                t1 = int(s[:2]) * 60 + int(s[2:])
+                self.assertLess(t1, 24 * 60)
+                self.assertLess((t1 - t0 + 60) % 60, 2)
+
+    def test_nostrftime(self):
+        with directory_populator.DirectoryPopulator("target", tmp_tz="", tmp_prefix="%H%M-", tmp_suffix="-%H%M") as p:
+            self.create("foo", "nostrftime")
+            self.assertTrue(os.getcwd().endswith(p.tmp_dir))
+        self.assertRegex(p.tmp_dir, "^%H%M-.*-%H%M$")
+        self.assertContent(os.path.join("target", "foo"), "nostrftime")
