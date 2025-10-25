@@ -72,15 +72,18 @@ class ClaimLedger(object):
     """Class that simplifies the avoidance of duplicate actions.
 
     When there's a possibility that a given action might be created more than
-    once, the creators of the task can use the ClaimLedger to make sure only one
-    of them get ownership of the action.  For this, the task must be identified
-    by a unique string, and all potential creators should identify themselves
-    with another unique string and try to claim the task. Only one of them will
-    claim it successfully.  Repeated claims will succeed if they're made by the
-    same claimant.
+    once from multiple sources, the creators of the task can use the ClaimLedger
+    to make sure only one of them gets ownership of the action.
+
+    For this, the task must be identified by a unique string, and all potential
+    creators should identify themselves with another unique string and try to
+    claim the task.  Only one of them will claim it successfully.
+    Repeated claims will succeed if they're issued with the same claimant id.
 
     This class supports concurrent access and works accross process restarts as
     long as the claims use stable ids and nothing meddles with the shelf.
+    Beware though that if the process starts multiple times and the a claim is
+    issued each time with the same claimant id, it will succeed each time.
 
     Example use:
         with shelve.open("shelf") as shelf:
