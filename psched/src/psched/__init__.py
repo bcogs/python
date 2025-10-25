@@ -33,6 +33,7 @@ import pickle
 import signal
 import sys
 import tempfile
+import threading
 import time
 
 
@@ -65,6 +66,49 @@ class SignalsMasker(object):
 
     def __exit__(self, exc_type, exc_value, exc_tb):
         signal.pthread_sigmask(signal.SIG_SETMASK, self._before)
+
+
+class ClaimLedger(object):
+    """Class that simplifies the avoidance of duplicate actions.
+
+    When there's a possibility that a given action might be created more than
+    once, the creators of the task can use the ClaimLedger to make sure only one
+    of them get ownership of the action.  For this, the task must be identified
+    by a unique string, and all potential creators should identify themselves
+    with another unique string and try to claim the task, only one of them will
+    claim it successfully.  Repeated claims will succeed if the come from the
+    same claimant.
+
+    This class supports concurrent access.
+    """
+
+    def __init__(self, shelf: "shelve.Shelf", cache: bool = False, sigmask=SignalsMasker.MASKABLE_TERMINATING_SIGNALS):  # noqa: F821
+        """Args:
+
+        shelf: an open shelve.Shelf where the claims will be persisted
+        cache: whether or not accesses to the shelf should be cached (this isn't
+               based on the shelve.Shelf builtin cache, because writes are
+               always synced immediately)
+        sigmask: set of signals to mask when writing to the shelf"""
+        self._cache, self._lock, self.shelf, self.sigmask = ({} if cache else None), threading.Lock(), shelf, sigmask
+
+    def claim(self, what_is_claimed: str, who_is_claiming_it: str) -> bool:
+        with self._lock:
+            owner = None if self._cache is None else self._cache.get(what_is_claimed, None)
+            if owner is None:
+                owner = self.shelf.get(what_is_claimed, None)
+                if owner is None:
+                    with SignalsMasker(signals_to_mask=self.sigmask):
+                        self.shelf[what_is_claimed] = who_is_claiming_it
+                        self.shelf.sync()
+                    self._observe(what_is_claimed, who_is_claiming_it)
+                    return True
+                self._observe(what_is_claimed, owner)
+        return who_is_claiming_it == owner
+
+    def _observe(self, what_is_claimed: str, who_is_claiming_it: str):
+        if self._cache is not None:
+            self._cache[what_is_claimed] = who_is_claiming_it
 
 
 class Fatal(object):

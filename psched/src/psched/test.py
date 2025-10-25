@@ -5,6 +5,7 @@ import glob
 import os
 import random
 import re
+import shelve
 import signal
 import tempfile
 import threading
@@ -908,3 +909,46 @@ class SchedulerTest(unittest.TestCase):
             self.assertEqual(expected, calls)
             self.assertLess(1, journal.max_garbage)
             self.assertLess(journal.max_garbage, 3)
+
+
+class ClaimLedgerTest(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.reopen_shelf()
+
+    def tearDown(self):
+        self.dir.cleanup()
+        if self.shelf:
+            self.shelf = self.shelf.close()
+
+    def reopen_shelf(self):
+        if self.__dict__.get("shelf"):
+            self.shelf.close()
+        self.shelf = shelve.open(os.path.join(self.dir.name, "shelf"))
+
+    def _test_nominal(self, cache: bool):
+        N = 2
+        for i in range(N):
+            ledger = psched.ClaimLedger(self.shelf, cache, sigmask=frozenset())
+            for j in range(3):
+                self.assertTrue(ledger.claim("what", "by who"))
+                self.assertFalse(ledger.claim("what", "by someone else"))
+                self.assertTrue(ledger.claim("what2", "foo"))
+                self.assertFalse(ledger.claim("what2", "bar"))
+            if i + 1 < N:
+                self.reopen_shelf()
+                ledger = psched.ClaimLedger(self.shelf, cache, sigmask=frozenset())
+
+    def test_nominal_with_cache(self):
+        self._test_nominal(True)
+
+    def test_nominal_without_cache(self):
+        self._test_nominal(False)
+
+    def test_caching(self):
+        ledger = psched.ClaimLedger(self.shelf, True, sigmask=frozenset())
+        ledger.claim("what", "by who")
+        self.shelf.close()
+        self.shelf = None
+        self.assertTrue(ledger.claim("what", "by who"))
+        self.assertFalse(ledger.claim("what", "by someone else"))
