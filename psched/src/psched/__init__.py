@@ -75,11 +75,21 @@ class ClaimLedger(object):
     once, the creators of the task can use the ClaimLedger to make sure only one
     of them get ownership of the action.  For this, the task must be identified
     by a unique string, and all potential creators should identify themselves
-    with another unique string and try to claim the task, only one of them will
-    claim it successfully.  Repeated claims will succeed if the come from the
+    with another unique string and try to claim the task. Only one of them will
+    claim it successfully.  Repeated claims will succeed if they're made by the
     same claimant.
 
-    This class supports concurrent access.
+    This class supports concurrent access and works accross process restarts as
+    long as the claims use stable ids and nothing meddles with the shelf.
+
+    Example use:
+        with shelve.open("shelf") as shelf:
+            ledger = psched.ClaimLedger(shelf, True)
+
+        # assuming several workers call the following, only one of them will
+        # actually call do_task()
+        def work(worker_id, ledger: ClaimLedger):
+            if ledger.claim("some task", "worker %r" % worker_id): do_task()
     """
 
     def __init__(self, shelf: "shelve.Shelf", cache: bool = False, sigmask=SignalsMasker.MASKABLE_TERMINATING_SIGNALS):  # noqa: F821
