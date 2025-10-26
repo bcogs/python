@@ -91,7 +91,7 @@ class ClaimLedger(object):
 
     Example use:
         with shelve.open("shelf") as shelf:
-            ledger = psched.ClaimLedger(shelf, True)
+            ledger = psched.ClaimLedger(shelf, cache=True)
 
         # assuming several workers call the following, only one of them will
         # actually call do_task()
