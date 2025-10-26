@@ -911,7 +911,7 @@ class SchedulerTest(unittest.TestCase):
             self.assertLess(journal.max_garbage, 3)
 
 
-class ClaimLedgerTest(unittest.TestCase):
+class ClaimLedgerWithShelveTest(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.TemporaryDirectory()
         self.reopen_shelf()
@@ -952,3 +952,59 @@ class ClaimLedgerTest(unittest.TestCase):
         self.shelf = None
         self.assertTrue(ledger.claim("what", "by who"))
         self.assertFalse(ledger.claim("what", "by someone else"))
+
+
+class FakeDBAndLock(object):
+    def __init__(self):
+        self.data, self.calls, self.locked = {}, [], False
+
+    def __setitem__(self, key, value):
+        self.calls.append(("setitem", key, value))
+        self.data[key] = value
+
+    def get(self, key, default=None):
+        self.calls.append(("get", key, default))
+        return self.data.get(key, default)
+
+    def __enter__(self):
+        self.calls.append(("lock",))
+        assert not self.locked
+        self.locked = True
+        return self
+
+    def __exit__(self, *args):
+        self.calls.append(("unlock",))
+        self.locked = False
+
+
+class ClaimLedgerWithFakeDBTest(unittest.TestCase):
+    def setUp(self):
+        self.db = FakeDBAndLock()
+
+    def _test_locking_and_caching(self, cache: bool):
+        ledger = psched.ClaimLedger(self.db, cache, lock=self.db)
+        self.assertTrue(ledger.claim("what", "by who"))
+        self.assertFalse(ledger.claim("what", "by someone else"))
+        self.assertTrue(ledger.claim("what2", "foo"))
+        self.assertFalse(ledger.claim("what2", "bar"))
+        expected_calls = [("lock",), ("get", "what", None), ("setitem", "what", "by who"), ("unlock",), ("lock",)]
+        if not cache:
+            expected_calls.append(("get", "what", None))
+        expected_calls += [
+            ("unlock",),
+            ("lock",),
+            ("get", "what2", None),
+            ("setitem", "what2", "foo"),
+            ("unlock",),
+            ("lock",),
+        ]
+        if not cache:
+            expected_calls.append(("get", "what2", None))
+        expected_calls.append(("unlock",))
+        self.assertListEqual(expected_calls, self.db.calls)
+
+    def test_locking_without_cache(self):
+        self._test_locking_and_caching(False)
+
+    def test_locking_with_cache(self):
+        self._test_locking_and_caching(True)
