@@ -71,19 +71,23 @@ class SignalsMasker(object):
 class ClaimLedger(object):
     """Class that simplifies the avoidance of duplicate actions.
 
-    When there's a possibility that a given action might be created more than
-    once from multiple sources, the creators of the task can use the ClaimLedger
-    to make sure only one of them gets ownership of the action.
+    When there's a possibility that a given action (e.g. "create a Task that
+    will do X" or "append data Y to file Z") might be performed several times,
+    ClaimLedger can be used to deduplicate the action execution.
 
-    For this, the task must be identified by a unique string, and all potential
-    creators should identify themselves with another unique string and try to
-    claim the task.  Only one of them will claim it successfully.
-    Repeated claims will succeed if they're issued with the same claimant id.
+    To use it, a unique string must be defined to identify the action, and each
+    potential execution must be identified by its own unique string as well.
+
+    Then, action executions should be subject to a successful claim of the
+    action at the execution site. ClaimLedger manages the claims, and enforces
+    that a unique execution id will successfully claim a unique action id.
+
+    Repeated claims of a given acion id with a same execution id will succeed,
+    so it doesn't prevent repeated executions with a same execution id.
 
     This class supports concurrent access and works accross process restarts as
-    long as the claims use stable ids and nothing meddles with the shelf.
-    Beware though that if the process starts multiple times and the a claim is
-    issued each time with the same claimant id, it will succeed each time.
+    long as the claims use stable ids and nothing meddles with the underlying
+    persisted files.
 
     Example use:
         with shelve.open("shelf") as shelf:
@@ -95,33 +99,41 @@ class ClaimLedger(object):
             if ledger.claim("some task", "worker %r" % worker_id): do_task()
     """
 
-    def __init__(self, shelf: "shelve.Shelf", cache: bool = False, sigmask=SignalsMasker.MASKABLE_TERMINATING_SIGNALS):  # noqa: F821
+    def __init__(self, db, cache: bool = False, sigmask=SignalsMasker.MASKABLE_TERMINATING_SIGNALS, lock=None):
         """Args:
 
-        shelf: an open shelve.Shelf where the claims will be persisted
-        cache: whether or not accesses to the shelf should be cached (this isn't
-               based on the shelve.Shelf builtin cache, because writes are
-               always synced immediately)
-        sigmask: set of signals to mask when writing to the shelf"""
-        self._cache, self._lock, self.shelf, self.sigmask = ({} if cache else None), threading.Lock(), shelf, sigmask
+        db: Usually an open shelve.Shelf or dbm object.  It must be a "database"
+            with __setitem__(), get(), and optionally sync() methods.
+            It's ok if the db is used for other things as well, as long as
+                1 - they don't meddle with keys that start with action ids, and
+                2 - those accesses are protected by acquiring lock.
+        cache: if True, maintain an in-memory cache of db accesses (but writes
+               are always performed right away)
+        sigmask: set of signals to mask when writing to the shelf
+        lock: If not None, it must be a threading.Lock that will be used to
+              protect accesses to db.  If None, threading.Lock will be used to
+              create one."""
+        self._cache, self._lock = ({} if cache else None), (threading.Lock() if lock is None else lock)
+        self.db, self.sigmask = db, sigmask
 
-    def claim(self, what_is_claimed: str, who_is_claiming_it: str) -> bool:
+    def claim(self, action_id: str, claimant_id: str) -> bool:
         with self._lock:
-            owner = None if self._cache is None else self._cache.get(what_is_claimed, None)
+            owner = None if self._cache is None else self._cache.get(action_id, None)
             if owner is None:
-                owner = self.shelf.get(what_is_claimed, None)
+                owner = self.db.get(action_id, None)
                 if owner is None:
                     with SignalsMasker(signals_to_mask=self.sigmask):
-                        self.shelf[what_is_claimed] = who_is_claiming_it
-                        self.shelf.sync()
-                    self._observe(what_is_claimed, who_is_claiming_it)
+                        self.db[action_id] = claimant_id
+                        if hasattr(self.db, "sync"):
+                            self.db.sync()
+                    self._observe(action_id, claimant_id)
                     return True
-                self._observe(what_is_claimed, owner)
-        return who_is_claiming_it == owner
+                self._observe(action_id, owner)
+        return claimant_id == owner
 
-    def _observe(self, what_is_claimed: str, who_is_claiming_it: str):
+    def _observe(self, action_id: str, claimant_id: str):
         if self._cache is not None:
-            self._cache[what_is_claimed] = who_is_claiming_it
+            self._cache[action_id] = claimant_id
 
 
 class Fatal(object):
