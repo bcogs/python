@@ -34,6 +34,19 @@ class FileSinkTest(unittest.TestCase):
                     self.assertGreaterEqual(int(i), file_level)
                 self.assertEqual(log.FATAL - file_level, nlines)
 
+    def test_trim(self):
+        fpath = os.path.join(self.test_dir, "foo")
+        sink = log.FileSink(stderr_level=log.INFO, file_path=fpath)
+        buf = io.StringIO()
+        with contextlib.redirect_stderr(buf):
+            sink.log(log.ERR, "A" * 10000 + "B" * 10000)
+        stderr = buf.getvalue()
+        with open(fpath) as f:
+            line = f.readline()
+        for s in (stderr, line):
+            self.assertRegex(s, r"^E\d\d\d\d \d\d:\d\d:\d\d AAA")
+            self.assertTrue(s.endswith(" " + "A" * (5000 - 15) + " ... " + "B" * 5000 + "\n"))
+
     def test_log_only_to_stderr(self):
         sink = log.FileSink(stderr_level=log.INFO, file_path="")
         buf = io.StringIO()
@@ -295,3 +308,13 @@ class StackTraceTest(unittest.TestCase):
         self.assertEqual(log.ERR, sink.logs[0][0])
         self.assertRegex(sink.logs[0][1], "log/test.py.*line \d.*test_stack_trace_logger")
         self.assertIn('raise Exception("blah")', sink.logs[0][1])
+
+
+class TrimTest(unittest.TestCase):
+    def test_trim(self):
+        for i in range(11):
+            self.assertEqual("0123456789", log.trim(i, 10 - i, "0123456789"))
+            self.assertEqual("0123456789", log.trim(i, 11 - i, "0123456789"))
+        self.assertEqual("0123 ... 89", log.trim(4, 2, "0123456789"))
+        for i in range(10):
+            self.assertEqual("0123456789"[:i] + " ... " + "0123456789"[i - 9 :], log.trim(i, 9 - i, "0123456789"))
