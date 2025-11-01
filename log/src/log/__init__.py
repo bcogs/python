@@ -215,6 +215,7 @@ class FileSink(object):
             return
         level, msg = make(level, fmt, *args, **kwargs)
         msg = LEVELS[max(level, 0)][0].upper() + time.strftime("%m%d %H:%M:%S ") + msg + "\n"
+        # XXX truncate lines that are too long
         if level >= self.stderr_level:
             sys.stderr.write(msg)
         if level >= self.file_level and self.file:

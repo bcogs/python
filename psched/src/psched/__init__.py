@@ -606,7 +606,7 @@ class Scheduler(object):
             ptask.when = self.get_time() + delay
             queue.push(ptask)
             return None
-        self.logger.error("%s failed and won't be retried - %s", ptask, e)
+        self.logger.err("%s failed and won't be retried - %s", ptask, e)
         return ptask.process_failure(e)
 
     def _init_queue(self, default_initial_tasks, journal: Journal, cs: CompactionStrategy):
