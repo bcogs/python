@@ -170,14 +170,25 @@ def make(level: int, fmt: str, *args, **kwargs) -> (int, str):
     return level, msg + "\n at " + caller_stack
 
 
+def trim(start: int, end: int, s: str):
+    return s if len(s) <= start + end else s[:start] + " ... " + s[-end:]
+
+
 class FileSink(object):
     """Default sink that logs to files and stderr.
 
     It's also a context manager, it flushes and closes any open file when exiting.
     """
 
-    def __init__(self, file_path=None, stderr_level=TELL, file_level=DBG):
-        self.stderr_level, self.file_level = stderr_level, file_level
+    def __init__(
+        self, file_path: str = None, trim_start: int = 5000, trim_end: int = 5000, stderr_level=TELL, file_level=DBG
+    ):
+        self.stderr_level, self.file_level, self.trim_start, self.trim_end = (
+            stderr_level,
+            file_level,
+            trim_start,
+            trim_end,
+        )
         if file_path is None:
             self.file = tempfile.NamedTemporaryFile(
                 dir=tempfile.gettempdir(),
@@ -214,7 +225,12 @@ class FileSink(object):
         if level < self.stderr_level and level < self.file_level:
             return
         level, msg = make(level, fmt, *args, **kwargs)
-        msg = LEVELS[max(level, 0)][0].upper() + time.strftime("%m%d %H:%M:%S ") + msg + "\n"
+        msg = (
+            trim(
+                self.trim_start, self.trim_end, LEVELS[max(level, 0)][0].upper() + time.strftime("%m%d %H:%M:%S ") + msg
+            )
+            + "\n"
+        )
         # XXX truncate lines that are too long
         if level >= self.stderr_level:
             sys.stderr.write(msg)
@@ -226,11 +242,12 @@ class FileSink(object):
 class RamSink(object):
     """In memory sink, useful for unit tests that want to check log content."""
 
-    def __init__(self):
+    def __init__(self, trim_start: int = 5000, trim_end: int = 5000):
         self.logs = []  # (level, message) pairs
+        self.trim_start, self.trim_end = trim_start, trim_end
 
     def log(self, level, fmt, *args, **kwargs):
-        self.logs.append(make(level, fmt, *args, **kwargs))
+        self.logs.append(trim(self.trim_start, self.trim_end, make(level, fmt, *args, **kwargs)))
 
 
 default_logger = Logger(FileSink())
