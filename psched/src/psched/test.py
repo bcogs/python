@@ -56,6 +56,12 @@ class SignalsMaskerTest(unittest.TestCase):
             self.assertLess(slept, 3)
 
 
+def fail_first_pass(arg, live: dict):
+    live.setdefault("args", []).append(arg)
+    if live["pass"] < 2:
+        raise Failure("simulated failure in fail_first_pass (%d)" % live["pass"])
+
+
 class CallRecorder(object):
     call_recorders = {}  # id -> CallRecorder
 
@@ -673,6 +679,18 @@ class SchedulerTest(unittest.TestCase):
             journal=os.path.join(self.journal_dir.name, "foo"),
         )
         self.assertListEqual([(1.0, (0,), {"fail_until": 100.0}), (1.0, (1,), {"bar": None})], cr.calls)
+
+    def test_trivial_journal_recovery(self):
+        journal, live_state = os.path.join(self.journal_dir.name, "journal"), {"pass": 1}
+        tasks = [psched.Task(fail_first_pass, args=("foo", psched.Live()))]
+        with self.assertRaises(Failure):
+            psched.Scheduler(live_state=live_state).run(tasks, journal)
+        self.assertEqual(["foo"], live_state["args"])
+        live_state["pass"] = 2
+        psched.Scheduler(live_state=live_state).run([], journal)
+        self.assertEqual(["foo", "foo"], live_state["args"])
+        psched.Scheduler(live_state=live_state).run([], journal)
+        self.assertEqual(["foo", "foo"], live_state["args"])
 
     def test_basic_journal_recovery(self):
         for fail_at in range(3):
