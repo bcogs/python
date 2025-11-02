@@ -144,3 +144,22 @@ class DirectoryPopulatorTest(unittest.TestCase):
             self.assertTrue(os.getcwd().endswith(p.tmp_dir))
         self.assertRegex(p.tmp_dir, "^%H%M-.*-%H%M$")
         self.assertContent(os.path.join("target", "foo"), "nostrftime")
+
+    def _test_forced_tmp_dir(self, create: bool):
+        if create:
+            os.mkdir("forced-tmp-dir")
+        with directory_populator.DirectoryPopulator("target", tmp_dir="forced-tmp-dir"):
+            self.create("foo", "forced-tmp-dir")
+            self.assertTrue(os.getcwd().endswith("forced-tmp-dir"))
+        self.assertContent(os.path.join("target", "foo"), "forced-tmp-dir")
+        if create:
+            os.mkdir("forced-tmp-dir")
+        with directory_populator.DirectoryPopulator("target", chdir=False, tmp_dir="forced-tmp-dir"):
+            self.create(os.path.join("forced-tmp-dir", "bar"), "forced-tmp-dir")
+        self.assertContent(os.path.join("target", "bar"), "forced-tmp-dir")
+
+    def test_forced_tmp_dir_create(self):
+        self._test_forced_tmp_dir(True)
+
+    def test_forced_tmp_dir_nocreate(self):
+        self._test_forced_tmp_dir(False)

@@ -25,19 +25,15 @@ class DirectoryPopulator(object):
     tmp_prefix: str = ""  # prefix of the temp dir name, same as tempfile.mkstemp
     tmp_suffix: str = ""  # end of the temp dir name, same as tempfile.mkstemp
     tmp_parent: str = ""  # directory containing the temp dir, same as tempfile.mkstemp's dir
+    tmp_dir: str = ""  # if non-empty, sets the temp dir name, ignoring tmp_*
     chdir: bool = True  # if True, chdir to the temp dir when entering the context, and chdir back to the original cwd when exiting it; if False, the path of the temporary directory is in the tmp_dir member
     tmp_tz: str = "UTC"  # if non-empty, tmp_prefix and tmp_suffix will be interpreted with strftime in the given timezone (use "local" for the default tz)
 
     def __enter__(self):
-        if self.tmp_tz:
-            if self.tmp_tz != "local":
-                now = datetime.datetime.now(zoneinfo.ZoneInfo(self.tmp_tz)).timetuple()
-            else:
-                now = time.localtime()
-            prefix, suffix = time.strftime(self.tmp_prefix, now), time.strftime(self.tmp_suffix, now)
-        else:
-            prefix, suffix = self.tmp_prefix, self.tmp_suffix
-        self.tmp_dir = tempfile.mkdtemp(prefix=prefix, suffix=suffix, dir=self.tmp_parent)
+        if not self.tmp_dir:
+            self.tmp_dir = self._create_tmp_dir()
+        elif not os.path.exists(self.tmp_dir):
+            os.mkdir(self.tmp_dir)
         if self.chdir:
             self._original_cwd = os.getcwd()
             os.chdir(self.tmp_dir)
@@ -70,3 +66,14 @@ class DirectoryPopulator(object):
         if to_del:
             shutil.rmtree(to_del)
         self.committed = True
+
+    def _create_tmp_dir(self):
+        if self.tmp_tz:
+            if self.tmp_tz != "local":
+                now = datetime.datetime.now(zoneinfo.ZoneInfo(self.tmp_tz)).timetuple()
+            else:
+                now = time.localtime()
+            prefix, suffix = time.strftime(self.tmp_prefix, now), time.strftime(self.tmp_suffix, now)
+        else:
+            prefix, suffix = self.tmp_prefix, self.tmp_suffix
+        return tempfile.mkdtemp(prefix=prefix, suffix=suffix, dir=self.tmp_parent)
