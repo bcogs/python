@@ -56,8 +56,12 @@ class SignalsMaskerTest(unittest.TestCase):
             self.assertLess(slept, 3)
 
 
-def fail_first_pass(arg, live: dict):
+def noop(arg, live: dict):
     live.setdefault("args", []).append(arg)
+
+
+def fail_first_pass(arg, live: dict):
+    noop(arg, live)
     if live["pass"] < 2:
         raise Failure("simulated failure in fail_first_pass (%d)" % live["pass"])
 
@@ -680,17 +684,32 @@ class SchedulerTest(unittest.TestCase):
         )
         self.assertListEqual([(1.0, (0,), {"fail_until": 100.0}), (1.0, (1,), {"bar": None})], cr.calls)
 
-    def test_trivial_journal_recovery(self):
+    def test_trivial_journal_recovery_with_no_compaction(self):
         journal, live_state = os.path.join(self.journal_dir.name, "journal"), {"pass": 1}
         tasks = [psched.Task(fail_first_pass, args=("foo", psched.Live()))]
         with self.assertRaises(Failure):
             psched.Scheduler(live_state=live_state).run(tasks, journal)
         self.assertEqual(["foo"], live_state["args"])
-        live_state["pass"] = 2
-        psched.Scheduler(live_state=live_state).run([], journal)
-        self.assertEqual(["foo", "foo"], live_state["args"])
-        psched.Scheduler(live_state=live_state).run([], journal)
-        self.assertEqual(["foo", "foo"], live_state["args"])
+        live_state2 = live_state.copy()
+        live_state2["pass"] = 2
+        psched.Scheduler(live_state=live_state2).run([], journal)
+        self.assertEqual(["foo", "foo"], live_state2["args"])
+        psched.Scheduler(live_state=live_state2).run([], journal)
+        self.assertEqual(["foo", "foo"], live_state2["args"])
+
+    def test_trivial_journal_recovery_after_compaction(self):
+        journal, live_state = os.path.join(self.journal_dir.name, "journal"), {"pass": 1}
+        tasks = [psched.Task(noop, args=("%d" % i, psched.Live())) for i in range(4)]
+        tasks.append(psched.Task(fail_first_pass, args=("foo", psched.Live())))
+        with self.assertRaises(Failure):
+            psched.Scheduler(live_state=live_state).run(tasks, journal, compaction=2)
+        self.assertEqual(["0", "1", "2", "3", "foo"], live_state["args"])
+        live_state2 = live_state.copy()
+        live_state2["pass"] = 2
+        psched.Scheduler(live_state=live_state2).run([], journal)
+        self.assertEqual(["0", "1", "2", "3", "foo", "foo"], live_state2["args"])
+        psched.Scheduler(live_state=live_state2).run([], journal)
+        self.assertEqual(["0", "1", "2", "3", "foo", "foo"], live_state2["args"])
 
     def test_basic_journal_recovery(self):
         for fail_at in range(3):

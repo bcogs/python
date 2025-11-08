@@ -231,7 +231,7 @@ class _PersistableTask(object):
                 continue
             n = max(n, k)
         new_args, i, args = [], 0, d.get("args", ())
-        while i < len(args) or len(new_args) < n:
+        while i < len(args) or len(new_args) <= n:
             if len(new_args) in live:
                 new_args.append(Live(live[len(new_args)]))
             else:
@@ -633,7 +633,10 @@ class Scheduler(object):
                 tasks_by_id[id(dependency)][1].set_trigger(kwarg, ptask)
             if not task.dependencies:
                 queue.push(ptask)
-                record.append(ptask.__dict__)
+                record.append(ptask)
+        # prepare pickling only after the above loop, because it mutates ptasks
+        # after inserting them in record, when it calls set_trigger.
+        record = [ptask.prepare_pickling() for ptask in record]
         if completed_seq_num is not None:
             if cs and cs.record_garbage(1):
                 return True
