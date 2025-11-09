@@ -231,7 +231,7 @@ class _PersistableTask(object):
                 continue
             n = max(n, k)
         new_args, i, args = [], 0, d.get("args", ())
-        while i < len(args) or len(new_args) < n:
+        while i < len(args) or len(new_args) <= n:
             if len(new_args) in live:
                 new_args.append(Live(live[len(new_args)]))
             else:
@@ -299,6 +299,12 @@ class _PersistableTask(object):
                 ready.append(dependent_ptask)
         return ready
 
+    # TODO:
+    #  we use prepare_pickling instead of the raw instance because unpickling sometimes fails to retrieve the classes
+    #  but it's bogus because we don't recursively do the same with triggers
+    #  so we should either find a way to reproduce and fix the unpicling issue,
+    #  or apply the same operation to triggers, which isn't trivial, as we
+    #  mustn't copy them when pickling
     def prepare_pickling(self) -> dict:
         d, live = self.__dict__.copy(), {}
         args = d.get("args", None)
@@ -633,7 +639,10 @@ class Scheduler(object):
                 tasks_by_id[id(dependency)][1].set_trigger(kwarg, ptask)
             if not task.dependencies:
                 queue.push(ptask)
-                record.append(ptask.__dict__)
+                record.append(ptask)
+        # prepare pickling only after the above loop, because it mutates ptasks
+        # after inserting them in record, when it calls set_trigger.
+        record = [ptask.prepare_pickling() for ptask in record]
         if completed_seq_num is not None:
             if cs and cs.record_garbage(1):
                 return True
