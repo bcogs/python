@@ -299,6 +299,12 @@ class _PersistableTask(object):
                 ready.append(dependent_ptask)
         return ready
 
+    # TODO:
+    #  we use prepare_pickling instead of the raw instance because unpickling sometimes fails to retrieve the classes
+    #  but it's bogus because we don't recursively do the same with triggers
+    #  so we should either find a way to reproduce and fix the unpicling issue,
+    #  or apply the same operation to triggers, which isn't trivial, as we
+    #  mustn't copy them when pickling
     def prepare_pickling(self) -> dict:
         d, live = self.__dict__.copy(), {}
         args = d.get("args", None)
